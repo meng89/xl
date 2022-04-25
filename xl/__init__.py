@@ -116,18 +116,17 @@ class XLError(Exception):
 
 
 class Xl(object):
-    def __init__(self, prolog=None, doc_type=None, root=None):
-
-        self.prolog = prolog or Prolog()
-        self.doc_type = doc_type
+    def __init__(self, prolog=None, doctype=None, root=None):
+        self.prolog = prolog
+        self.doctype = doctype
         self.root = root
 
     def to_str(self):
         s = ''
         if self.prolog:
             s += self.prolog.to_str() + '\n'
-        if self.doc_type:
-            s += self.doc_type.to_str() + '\n'
+        if self.doctype:
+            s += self.doctype.to_str() + '\n'
         s += self.root.to_str()
         return s
 
@@ -162,18 +161,11 @@ class Prolog(_Node):
 
 
 class DocType(_Node):
-    def __init__(self, doc_type_name, system_id, public_id):
-        self.doc_type_name = doc_type_name
-        self.system_id = system_id
-        self.public_id = public_id
+    def __init__(self, text):
+        self.text = text
 
     def to_str(self):
-        s = '<!DOCTYPE'
-        s += ' {}'.format(self.doc_type_name)
-        s += ' "{}"'.format(self.public_id)
-        s += ' "{}"'.format(self.system_id)
-        s += '>'
-        return s
+        return "<!DOCTYPE {}>".format(self.text)
 
 
 class InitError(Exception):
@@ -344,10 +336,27 @@ def _parse_prolog(text, i):
 
 
 def _parse_doctype(text, i):
-    if text[i:i+9] != "<!DOCTYPE":
+    if text[i:i+9] != "<!DOCTYPE ":
         raise ParseError
-    i += 9
-    _read_till(text, i, )
+    i += 10
+    _text = ""
+
+    lessthan = 0
+    greaterthan = 0
+    while i < len(text):
+        if text[i] == ">":
+            greaterthan += 1
+        elif text[i] == "<":
+            lessthan += 1
+
+        if greaterthan - lessthan == 1:
+            break
+        else:
+            _text += text[i]
+            i += 1
+
+    return DocType(_text), i
+
 
 _blank = (" ", "\t", "\n", "\r")
 
@@ -500,7 +509,7 @@ def parse(text: str, do_strip=False, chars=None):
     i = ignore_blank(text, i)
     root, i = _parse_element(text, i, do_strip, chars)
 
-    xl = Xl(prolog, root=root)
+    xl = Xl(prolog=prolog, doctype=doctype, root=root)
 
     return xl
 
