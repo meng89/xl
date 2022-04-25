@@ -17,6 +17,8 @@ _xml_attr_escape_table = _xml_escape_table + [
     ("'", "&apos;")
 ]
 
+_xml_comment_escape_table = [("-", "&#45;")]
+
 
 def _unescape(text, table):
     _text = text
@@ -48,24 +50,6 @@ def _escape(text, table):
         if not escaped:
             nt += c
     return nt
-
-
-def clean_whitespaces(element):
-    if not isinstance(element, Element):
-        raise TypeError
-
-    new_element = Element(tag=copy.deepcopy(element.tag),
-                          attrs=copy.deepcopy(element.attrs))
-
-    for child in element.kids:
-        if isinstance(child, str):
-            new_text = child.strip()
-            if new_text:
-                new_element.kids.append(new_text)
-        elif isinstance(child, Element):
-            new_element.kids.append(clean_whitespaces(child))
-
-    return new_element
 
 
 def _is_straight_line(element):
@@ -313,6 +297,14 @@ class Element(_Node):
 E = Element
 
 
+class Comment(object):
+    def __init__(self, text):
+        self.text = text
+
+    def to_str(self):
+        return "<!-- {} -->".format(_escape(self.text, _xml_escape_table))
+
+
 def sub(element, tag, attrs=None, kids=None):
     sub_element = Element(tag, attrs, kids)
     element.kids.append(sub_element)
@@ -350,6 +342,12 @@ def _parse_prolog(text, i):
     i += 1
     return prolog, i
 
+
+def _parse_doctype(text, i):
+    if text[i:i+9] != "<!DOCTYPE":
+        raise ParseError
+    i += 9
+    _read_till(text, i, )
 
 _blank = (" ", "\t", "\n", "\r")
 
@@ -467,20 +465,37 @@ def _parse_element(text, i, do_strip=False, chars=None):
     raise ParseError
 
 
+def _parse_comment(text, i):
+    if text[i:i+4] != "<!--":
+        raise ParseError
+    i += 4
+
+    comment_text, i = _read_till(text, i, "-->")
+    i += 3
+    return Comment(_unescape(comment_text, _xml_comment_escape_table)), i
+
+
 def _read_attr(text, i):
 
-    key, border, i = _read_till(text, i, "=")
+    key, i = _read_till(text, i, "=")
     key = key.strip()
     i = ignore_blank(text, i)
     qmark = text[i]
     i += 1
-    string_value, _, i = _read_till(text, i, qmark)
+    string_value, i = _read_till(text, i, qmark)
     return key, _unescape(string_value, _xml_attr_escape_table), i
 
 
 def parse(text: str, do_strip=False, chars=None):
     i = ignore_blank(text, 0)
-    prolog, i = _parse_prolog(text, i)
+    prolog = None
+    if "<?xml" == text[i:i+5]:
+        prolog, i = _parse_prolog(text, i)
+
+    i = ignore_blank(text, 0)
+    doctype = None
+    if "<!DOCTYPE" == text[i:i+9]:
+        doctype, i = _parse_doctype(text, i)
 
     i = ignore_blank(text, i)
     root, i = _parse_element(text, i, do_strip, chars)
@@ -490,16 +505,16 @@ def parse(text: str, do_strip=False, chars=None):
     return xl
 
 
-def _read_till(text, bi, chars):
-    xs = ""
+def _read_till(text, bi, stoptext):
+    _text = ""
     while bi < len(text):
-        if text[bi] not in chars:
-            xs += text[bi]
-            bi += 1
+        if text[bi:bi+len(stoptext)] == stoptext:
+            return _text, bi + 1
         else:
-            return xs, text[bi], bi + 1
+            _text += text[bi]
+            bi += 1
 
-    return xs, None, bi
+    return _text, bi
 
 
 class ParseError(Exception):
