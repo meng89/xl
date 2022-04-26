@@ -1,6 +1,6 @@
 # The MIT License
 
-""" XML without mess """
+""" XML without mire """
 
 from abc import abstractmethod
 
@@ -65,8 +65,8 @@ def _is_straight_line(element):
         return False
 
 
-def _is_have_string_kid(element):
-    for kid in element.kids:
+def _is_have_string_kid(kids):
+    for kid in kids:
         if isinstance(kid, str):
             return True
     return False
@@ -112,7 +112,7 @@ class Prolog(_Node):
         if self.version:
             s += ' version="{}"'.format(self.version)
         if self.encoding:
-            s += ' encoding="{}"'.format(self.encoding)
+            s += ' encoding="{}"'.format(self.encoding.upper())
         if self.standalone is not None:
             s += ' standalone="'
             s += self.standalone.lower()
@@ -163,8 +163,9 @@ class Element(_Node):
                begin_indent=0,
                step=4,
                char=" ",
+               dont_do_tags=None,
                dont_do_when_have_string_kid=True,
-               dont_do_tags=None):
+               ):
 
         dont_do_tags = dont_do_tags or []
 
@@ -183,7 +184,7 @@ class Element(_Node):
         if self.kids:
             s += '>'
 
-            if (dont_do_when_have_string_kid and _is_have_string_kid(self))\
+            if (dont_do_when_have_string_kid and _is_have_string_kid(self.kids))\
                     or self.tag in dont_do_tags\
                     or self in dont_do_tags:
                 for kid in self.kids:
@@ -205,8 +206,9 @@ class Element(_Node):
                                         begin_indent + step,
                                         step,
                                         char,
+                                        dont_do_tags,
                                         dont_do_when_have_string_kid,
-                                        dont_do_tags)
+                                        )
                 if do_pretty:
                     s += '\n' + char * begin_indent
 
@@ -348,8 +350,9 @@ def read_text(text, i):
 
 
 #  ↑↓←→↖↗↙↘
-def _parse_element(text, i, do_strip=False, chars=None):
-    _chars = chars or " \n\r\t"
+def _parse_element(text, i, do_strip=False, chars=None, dont_do_tags=None):
+    chars = chars or " \n\r\t"
+    dont_do_tags = dont_do_tags or []
 
     # <a id="1">xx<b/>yy</a>
     # ↑           ↑
@@ -383,6 +386,8 @@ def _parse_element(text, i, do_strip=False, chars=None):
         #          ↑
         i += 1
 
+    temp_kids = []
+
     while i < len(text):
         if text[i] == "<":
             # <a id="1">xx<b/>yy</a>
@@ -408,22 +413,40 @@ def _parse_element(text, i, do_strip=False, chars=None):
                 if text[i] != ">":
                     raise ParseError
                 i += 1
+
+                if dont_do_tags
+                for k in temp_kids:
+                    if isinstance(k, str):
+                        if do_strip:
+                            if dont_do_when_have_unblank:
+                                _s = k
+                            else:
+                                _s = k.strip(chars)
+                            _kid = _unescape(_s, _xml_escape_table)
+                        else:
+                            _kid = _unescape(k, _xml_escape_table)
+                    else:
+                        _kid = k
+                    e.kids.append(_kid)
+
                 return e, i
 
             else:
                 # <a id="1">xx<b/>yy</a>
                 #             ↑
-                kid, i = _parse_element(text, kid_e_i, do_strip, _chars)
-                e.kids.append(kid)
+                kid, i = _parse_element(text, kid_e_i, do_strip, chars, dont_do_when_have_unblank)
+                temp_kids.append(kid)
+                # e.kids.append(kid)
 
         else:
             # <a id="1">xx<b/>yy</a>
             #           ↑     ↑
             string_e, i = read_text(text, i)
-            if do_strip:
-                string_e = string_e.strip(_chars)
+            # if do_strip:
+            #    string_e = string_e.strip(_chars)
             if string_e:
-                e.kids.append(_unescape(string_e, _xml_escape_table))
+                temp_kids.append(string_e)
+                # e.kids.append(_unescape(string_e, _xml_escape_table))
     raise ParseError
 
 
@@ -448,7 +471,7 @@ def _read_attr(text, i):
     return key, _unescape(string_value, _xml_attr_escape_table), i
 
 
-def parse(text: str, do_strip=False, chars=None):
+def parse(text: str, do_strip=False, chars=None, dont_do_when_have_unblank=True):
     i = ignore_blank(text, 0)
     prolog = None
     if "<?xml" == text[i:i+5]:
@@ -460,7 +483,7 @@ def parse(text: str, do_strip=False, chars=None):
         doctype, i = _parse_doctype(text, i)
 
     i = ignore_blank(text, i)
-    root, i = _parse_element(text, i, do_strip, chars)
+    root, i = _parse_element(text, i, do_strip, chars, dont_do_when_have_unblank)
 
     xl = Xl(prolog=prolog, doctype=doctype, root=root)
 

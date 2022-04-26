@@ -24,9 +24,10 @@ _xml1_text = \
 """
 
 
-def _xml2_fun():
-    html = xl.E("html")
-    _head = xl.sub(html, "head", kids=[xl.Element("title", kids=["Virtual Library"])])
+def get_xml2():
+    html = xl.E("html", {"xmlns": "http://www.w3.org/1999/xhtml", "xml:lang": "en", "lang": "en"})
+    head = xl.sub(html, "head", kids=[xl.Element("title", kids=["Virtual Library"])])
+    _sf = xl.sub(head, "sf")
     body = xl.sub(html, "body")
     p = xl.sub(body, "p")
     p.kids.append("Moved to ")
@@ -39,23 +40,21 @@ def _xml2_fun():
 
     doctype = xl.DocType("""html 
   PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
-  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd""")
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd\"""")
 
     xml = xl.Xl(prolog=prolog, doctype=doctype, root=html)
-
-
+    return xml
 
 
 class MyTestCase(unittest.TestCase):
     def test_something(self):
-        html = xl.sub()
-        self.assertEqual(True, False)  # add assertion here
+        xml1 = xl.parse(_xml1_text, do_strip=True)
+        xml2 = get_xml2()
+        print(repr(xml1.to_str()))
+        print(repr(xml2.to_str()))
 
+        self.assertEqual(xml1.to_str(), xml2.to_str())  # add assertion here
 
 
 if __name__ == '__main__':
-    xml = xl.parse(_xml_text1, do_strip=True)
-    xml2 = xl.parse(xml.to_str())
-    print(xml2.to_str(do_pretty=True, dont_do_tags=["title"]))
-
-    # unittest.main()
+    unittest.main()
