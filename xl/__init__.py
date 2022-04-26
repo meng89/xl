@@ -3,7 +3,6 @@
 """ XML without mess """
 
 from abc import abstractmethod
-import copy
 
 
 _xml_escape_table = [
@@ -66,49 +65,11 @@ def _is_straight_line(element):
         return False
 
 
-def pretty_insert(element,
-                  start_indent=0,
-                  step=4,
-                  insert_str=None,
-                  dont_do_between_str=True,
-                  dont_do_when_one_kid=True,
-                  dont_do_tags=None):
-
-    insert_str = insert_str or " "
-    dont_do_tags = dont_do_tags or []
-    new_e = Element(tag=copy.deepcopy(element.tag), attrs=copy.deepcopy(element.attrs))
-
-    if (dont_do_when_one_kid and _is_straight_line(element)) or element.tag in dont_do_tags:
-        for kid in element.kids:
-            new_e.kids.append(copy.deepcopy(kid))
-
-    elif element.kids:
-        _indent_text = '\n' + insert_str * (start_indent + step)
-        last_type = None
-        for kid in element.kids:
-            if isinstance(kid, str):
-                if dont_do_between_str and last_type == str:
-                    pass
-                else:
-                    new_e.kids.append(_indent_text)
-                new_e.kids.append(kid)
-
-            elif isinstance(kid, Element):
-                new_e.kids.append(_indent_text)
-
-                new_e.kids.append(pretty_insert(element=kid,
-                                                start_indent=start_indent + step,
-                                                step=step,
-                                                insert_str=insert_str,
-                                                dont_do_between_str=dont_do_between_str,
-                                                dont_do_when_one_kid=dont_do_when_one_kid,
-                                                dont_do_tags=dont_do_tags
-                                                ))
-            last_type = type(kid)
-
-        new_e.kids.append('\n' + ' ' * start_indent)
-
-    return new_e
+def _is_have_string_kid(element):
+    for kid in element.kids:
+        if isinstance(kid, str):
+            return True
+    return False
 
 
 class XLError(Exception):
@@ -121,13 +82,13 @@ class Xl(object):
         self.doctype = doctype
         self.root = root
 
-    def to_str(self):
+    def to_str(self, *args, **kwargs):
         s = ''
         if self.prolog:
             s += self.prolog.to_str() + '\n'
         if self.doctype:
             s += self.doctype.to_str() + '\n'
-        s += self.root.to_str()
+        s += self.root.to_str(*args, **kwargs)
         return s
 
 
@@ -173,16 +134,11 @@ class InitError(Exception):
 
 
 class Element(_Node):
-    def __init__(self, tag=None, attrs=None, kids=None, fromstr=None):
+    def __init__(self, tag=None, attrs=None, kids=None):
         _Node.__init__(self)
-        if bool(tag) == bool(fromstr) or (not tag and not fromstr):
-            raise InitError()
-        if tag:
-            self.tag = tag
-            self._attrs = dict(attrs) if attrs else {}
-            self._kids = list(kids) if kids else []
-        else:
-            pass  # todo
+        self.tag = tag
+        self._attrs = dict(attrs) if attrs else {}
+        self._kids = list(kids) if kids else []
 
     @property
     def tag(self):
@@ -207,12 +163,13 @@ class Element(_Node):
                begin_indent=0,
                step=4,
                char=" ",
-               dont_do_between_str=True,
-               dont_do_when_one_kid=True,
+               dont_do_when_have_string_kid=True,
                dont_do_tags=None):
+
         dont_do_tags = dont_do_tags or []
 
         s = '<'
+        assert self.tag
         s += self.tag
 
         _attrs_string_list = []
@@ -226,7 +183,9 @@ class Element(_Node):
         if self.kids:
             s += '>'
 
-            if (dont_do_when_one_kid and _is_straight_line(self)) or self.tag in dont_do_tags:
+            if (dont_do_when_have_string_kid and _is_have_string_kid(self))\
+                    or self.tag in dont_do_tags\
+                    or self in dont_do_tags:
                 for kid in self.kids:
                     if isinstance(kid, str):
                         s += _escape(kid, _xml_escape_table)
@@ -234,26 +193,19 @@ class Element(_Node):
                         s += kid.to_str()
             else:
                 _indent_text = '\n' + char * (begin_indent + step)
-                last_type = None
                 for kid in self.kids:
+                    if do_pretty:
+                        s += _indent_text
+
                     if isinstance(kid, str):
-                        if dont_do_between_str and last_type == str:
-                            pass
-                        else:
-                            last_type = str
-                            if do_pretty:
-                                s += _indent_text
                         s += _escape(kid, _xml_escape_table)
 
                     elif isinstance(kid, Element):
-                        if do_pretty:
-                            s += _indent_text
                         s += kid.to_str(do_pretty,
-                                        begin_indent,
+                                        begin_indent + step,
                                         step,
                                         char,
-                                        dont_do_between_str,
-                                        dont_do_when_one_kid,
+                                        dont_do_when_have_string_kid,
                                         dont_do_tags)
                 if do_pretty:
                     s += '\n' + char * begin_indent
@@ -336,7 +288,7 @@ def _parse_prolog(text, i):
 
 
 def _parse_doctype(text, i):
-    if text[i:i+9] != "<!DOCTYPE ":
+    if text[i:i+10] != "<!DOCTYPE ":
         raise ParseError
     i += 10
     _text = ""
@@ -355,6 +307,7 @@ def _parse_doctype(text, i):
             _text += text[i]
             i += 1
 
+    i += 1
     return DocType(_text), i
 
 
@@ -501,7 +454,7 @@ def parse(text: str, do_strip=False, chars=None):
     if "<?xml" == text[i:i+5]:
         prolog, i = _parse_prolog(text, i)
 
-    i = ignore_blank(text, 0)
+    i = ignore_blank(text, i)
     doctype = None
     if "<!DOCTYPE" == text[i:i+9]:
         doctype, i = _parse_doctype(text, i)
