@@ -48,10 +48,8 @@ def get_xml2():
 
 class MyTestCase(unittest.TestCase):
     def test_something(self):
-        xml1 = xl.parse(_xml1_text, do_strip=True)
+        xml1 = xl.parse(_xml1_text, do_strip=True, dont_do_tags=["p"])
         xml2 = get_xml2()
-        print(repr(xml1.to_str()))
-        print(repr(xml2.to_str()))
 
         self.assertEqual(xml1.to_str(), xml2.to_str())  # add assertion here
 

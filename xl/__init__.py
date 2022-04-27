@@ -414,17 +414,13 @@ def _parse_element(text, i, do_strip=False, chars=None, dont_do_tags=None):
                     raise ParseError
                 i += 1
 
-                if dont_do_tags
                 for k in temp_kids:
                     if isinstance(k, str):
-                        if do_strip:
-                            if dont_do_when_have_unblank:
-                                _s = k
-                            else:
-                                _s = k.strip(chars)
-                            _kid = _unescape(_s, _xml_escape_table)
+                        if do_strip and e.tag not in dont_do_tags:
+                            _s = k.strip(chars)
                         else:
-                            _kid = _unescape(k, _xml_escape_table)
+                            _s = k
+                        _kid = _unescape(_s, _xml_escape_table)
                     else:
                         _kid = k
                     e.kids.append(_kid)
@@ -434,7 +430,7 @@ def _parse_element(text, i, do_strip=False, chars=None, dont_do_tags=None):
             else:
                 # <a id="1">xx<b/>yy</a>
                 #             ↑
-                kid, i = _parse_element(text, kid_e_i, do_strip, chars, dont_do_when_have_unblank)
+                kid, i = _parse_element(text, kid_e_i, do_strip, chars, dont_do_tags)
                 temp_kids.append(kid)
                 # e.kids.append(kid)
 
@@ -471,7 +467,7 @@ def _read_attr(text, i):
     return key, _unescape(string_value, _xml_attr_escape_table), i
 
 
-def parse(text: str, do_strip=False, chars=None, dont_do_when_have_unblank=True):
+def parse(text: str, do_strip=False, chars=None, dont_do_tags=None):
     i = ignore_blank(text, 0)
     prolog = None
     if "<?xml" == text[i:i+5]:
@@ -483,7 +479,7 @@ def parse(text: str, do_strip=False, chars=None, dont_do_when_have_unblank=True)
         doctype, i = _parse_doctype(text, i)
 
     i = ignore_blank(text, i)
-    root, i = _parse_element(text, i, do_strip, chars, dont_do_when_have_unblank)
+    root, i = _parse_element(text, i, do_strip, chars, dont_do_tags)
 
     xl = Xl(prolog=prolog, doctype=doctype, root=root)
 
