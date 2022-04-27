@@ -76,19 +76,28 @@ class XLError(Exception):
     pass
 
 
-class Xl(object):
+class Xml(object):
     def __init__(self, prolog=None, doctype=None, root=None):
         self.prolog = prolog
         self.doctype = doctype
         self.root = root
 
-    def to_str(self, *args, **kwargs):
+    def to_str(self,
+               do_pretty=False,
+               begin_indent=0,
+               step=4,
+               char=" ",
+               dont_do_tags=None):
         s = ''
         if self.prolog:
             s += self.prolog.to_str() + '\n'
         if self.doctype:
             s += self.doctype.to_str() + '\n'
-        s += self.root.to_str(*args, **kwargs)
+        s += self.root.to_str(do_pretty=do_pretty,
+                              begin_indent=begin_indent,
+                              step=step,
+                              char=char,
+                              dont_do_tags=dont_do_tags)
         return s
 
 
@@ -164,7 +173,6 @@ class Element(_Node):
                step=4,
                char=" ",
                dont_do_tags=None,
-               dont_do_when_have_string_kid=True,
                ):
 
         dont_do_tags = dont_do_tags or []
@@ -184,33 +192,24 @@ class Element(_Node):
         if self.kids:
             s += '>'
 
-            if (dont_do_when_have_string_kid and _is_have_string_kid(self.kids))\
-                    or self.tag in dont_do_tags\
-                    or self in dont_do_tags:
-                for kid in self.kids:
-                    if isinstance(kid, str):
-                        s += _escape(kid, _xml_escape_table)
-                    elif isinstance(kid, Element):
-                        s += kid.to_str()
-            else:
-                _indent_text = '\n' + char * (begin_indent + step)
-                for kid in self.kids:
-                    if do_pretty:
-                        s += _indent_text
+            _indent_text = '\n' + char * (begin_indent + step)
+            real_do_pretty = do_pretty and self.tag not in dont_do_tags and self not in dont_do_tags
+            for kid in self.kids:
+                if real_do_pretty:
+                    s += _indent_text
 
-                    if isinstance(kid, str):
-                        s += _escape(kid, _xml_escape_table)
+                if isinstance(kid, str):
+                    s += _escape(kid, _xml_escape_table)
 
-                    elif isinstance(kid, Element):
-                        s += kid.to_str(do_pretty,
-                                        begin_indent + step,
-                                        step,
-                                        char,
-                                        dont_do_tags,
-                                        dont_do_when_have_string_kid,
-                                        )
-                if do_pretty:
-                    s += '\n' + char * begin_indent
+                elif isinstance(kid, Element):
+                    s += kid.to_str(real_do_pretty,
+                                    begin_indent + step,
+                                    step,
+                                    char,
+                                    dont_do_tags
+                                    )
+            if real_do_pretty:
+                s += '\n' + char * begin_indent
 
             s += '</{}>'.format(self.tag)
         else:
@@ -481,7 +480,7 @@ def parse(text: str, do_strip=False, chars=None, dont_do_tags=None):
     i = ignore_blank(text, i)
     root, i = _parse_element(text, i, do_strip, chars, dont_do_tags)
 
-    xl = Xl(prolog=prolog, doctype=doctype, root=root)
+    xl = Xml(prolog=prolog, doctype=doctype, root=root)
 
     return xl
 

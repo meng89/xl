@@ -42,7 +42,7 @@ def get_xml2():
   PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
   "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd\"""")
 
-    xml = xl.Xl(prolog=prolog, doctype=doctype, root=html)
+    xml = xl.Xml(prolog=prolog, doctype=doctype, root=html)
     return xml
 
 
@@ -50,6 +50,8 @@ class MyTestCase(unittest.TestCase):
     def test_something(self):
         xml1 = xl.parse(_xml1_text, do_strip=True, dont_do_tags=["p"])
         xml2 = get_xml2()
+
+        print(xml2.to_str(do_pretty=True, dont_do_tags=["p"]))
 
         self.assertEqual(xml1.to_str(), xml2.to_str())  # add assertion here
 
