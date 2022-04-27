@@ -122,8 +122,8 @@ class Prolog(_Node):
 
 
 class DocType(_Node):
-    def __init__(self, text):
-        self.text = text
+    def __init__(self, text=None):
+        self.text = text or "html"
 
     def to_str(self):
         return "<!DOCTYPE {}>".format(self.text)
