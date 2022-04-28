@@ -424,7 +424,8 @@ def _parse_element(text, i, do_strip=False, chars=None, dont_do_tags=None):
                         _kid = _unescape(_s, _xml_escape_table)
                     else:
                         _kid = k
-                        e.kids.append(_kid)
+                        
+                    e.kids.append(_kid)
 
                 return e, i
 
