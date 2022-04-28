@@ -77,10 +77,10 @@ class XLError(Exception):
 
 
 class Xml(object):
-    def __init__(self, prolog=None, doctype=None, root=None):
-        self.prolog = prolog
-        self.doctype = doctype
-        self.root = root
+    def __init__(self, root, prolog=None, doctype=None):
+        self.prolog: Prolog or None = prolog
+        self.doctype: DocType or None = doctype
+        self.root: Element = root or Element()
 
     def to_str(self,
                do_pretty=False,
@@ -466,7 +466,7 @@ def _read_attr(text, i):
     return key, _unescape(string_value, _xml_attr_escape_table), i
 
 
-def parse(text: str, do_strip=False, chars=None, dont_do_tags=None):
+def parse(text: str, do_strip=False, chars=None, dont_do_tags=None) -> Xml:
     i = ignore_blank(text, 0)
     prolog = None
     if "<?xml" == text[i:i+5]:
@@ -480,7 +480,7 @@ def parse(text: str, do_strip=False, chars=None, dont_do_tags=None):
     i = ignore_blank(text, i)
     root, i = _parse_element(text, i, do_strip, chars, dont_do_tags)
 
-    xl = Xml(prolog=prolog, doctype=doctype, root=root)
+    xl = Xml(root=root, prolog=prolog, doctype=doctype)
 
     return xl
 
