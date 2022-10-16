@@ -25,4 +25,5 @@ setup(name=NAME,
       author_email='ObserverChan@gmail.com',
       license='MIT',
       url=URL,
+      py_modules=[NAME],
       classifiers=CLASSIFIERS)
