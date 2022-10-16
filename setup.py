@@ -1,13 +1,8 @@
 from setuptools import setup
-from distutils.util import convert_path
 
 
 NAME = "xl"
 
-main_ns = {}
-ver_path = convert_path('{}/version.py'.format(NAME))
-with open(ver_path) as ver_file:
-    exec(ver_file.read(), main_ns)
 
 DESCRIPTION = 'A Python module to process XML'
 
@@ -23,11 +18,9 @@ CLASSIFIERS = [
     'Programming Language :: Python :: Implementation :: PyPy',
     'Topic :: Software Development :: Libraries :: Python Modules',
 ]
-# with open('requirements.txt') as f:
-#    requirements = f.read().splitlines()
 
 setup(name=NAME,
-      version=main_ns['__version__'],
+      version="0.1.0",
       description=DESCRIPTION,
       include_package_data=True,
       author='Chen Meng',
@@ -37,5 +30,4 @@ setup(name=NAME,
       packages=[
           'xl'
       ],
-      # install_requires=requirements,
       classifiers=CLASSIFIERS)

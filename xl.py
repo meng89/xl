@@ -2,6 +2,9 @@
 
 """ XML without mire """
 
+__version__ = "0.1.0"
+
+
 from abc import abstractmethod
 
 
@@ -77,27 +80,38 @@ class XLError(Exception):
 
 
 class Xml(object):
-    def __init__(self, root, prolog=None, doctype=None):
+    def __init__(self, root=None, prolog=None, doctype=None):
         self.prolog: Prolog or None = prolog
         self.doctype: DocType or None = doctype
-        self.root: Element = root or Element()
+        self.root: Element or None = root
+        self._other_qmelements = []
+
+    @property
+    def other_qmelements(self):
+        return self._other_qmelements
 
     def to_str(self,
                do_pretty=False,
                begin_indent=0,
                step=4,
                char=" ",
-               dont_do_tags=None):
+               dont_do_tags=None,
+               self_closing=True):
         s = ''
         if self.prolog:
             s += self.prolog.to_str() + '\n'
+
+        for other_qmelement in self.other_qmelements:
+            s += other_qmelement.to_str() + '\n'
+
         if self.doctype:
             s += self.doctype.to_str() + '\n'
         s += self.root.to_str(do_pretty=do_pretty,
                               begin_indent=begin_indent,
                               step=step,
                               char=char,
-                              dont_do_tags=dont_do_tags)
+                              dont_do_tags=dont_do_tags,
+                              self_closing=self_closing)
         return s
 
 
@@ -107,7 +121,7 @@ class _Node(object):
         pass
 
 
-class Prolog(_Node):
+class _Prolog(_Node):
     def __init__(self, version=None, encoding=None, standalone=None):
         self.version = version or '1.0'
         self.encoding = encoding or 'UTF-8'
@@ -173,6 +187,7 @@ class Element(_Node):
                step=4,
                char=" ",
                dont_do_tags=None,
+               self_closing=True
                ):
 
         dont_do_tags = dont_do_tags or []
@@ -189,12 +204,12 @@ class Element(_Node):
             s += ' '
             s += ' '.join(_attrs_string_list)
 
-        if self.kids:
+        if self._kids:
             s += '>'
 
             _indent_text = '\n' + char * (begin_indent + step)
             real_do_pretty = do_pretty and self.tag not in dont_do_tags and self not in dont_do_tags
-            for kid in self.kids:
+            for kid in self._kids:
                 if real_do_pretty:
                     s += _indent_text
 
@@ -206,14 +221,19 @@ class Element(_Node):
                                     begin_indent + step,
                                     step,
                                     char,
-                                    dont_do_tags
+                                    dont_do_tags,
+                                    self_closing
                                     )
             if real_do_pretty:
                 s += '\n' + char * begin_indent
 
             s += '</{}>'.format(self.tag)
+
         else:
-            s += ' />'
+            if self_closing:
+                s = s + ">" + '</{}>'.format(self.tag)
+            else:
+                s += ' />'
 
         return s
 
@@ -239,7 +259,54 @@ class Element(_Node):
         return kids
 
 
-E = Element
+class QMElement(Element):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    def to_str(self, *args, **kwargs):
+        s = super().to_str(*args, **kwargs, self_closing=False)
+        assert s[-3:] == " />"
+        new_s = "<?" + s[1:-3] + "?>"
+        return new_s
+
+    @property
+    def kids(self):
+        raise AttributeError()
+
+
+class Prolog(QMElement):
+    def __init__(self, version=None, encoding=None, standalone=None):
+        super().__init__(tag="xml")
+        self.version = version or '1.0'
+        self.encoding = encoding or 'UTF-8'
+        self.standalone = standalone
+
+    @property
+    def version(self):
+        return self.attrs["version"]
+
+    @version.setter
+    def version(self, value):
+        if value:
+            self.attrs["version"] = value
+
+    @property
+    def encoding(self):
+        return self.attrs["encoding"]
+
+    @encoding.setter
+    def encoding(self, value):
+        if value:
+            self.attrs["encoding"] = value
+
+    @property
+    def standalone(self):
+        return self.attrs["standalone"]
+
+    @standalone.setter
+    def standalone(self, value):
+        if value:
+            self.attrs["standalone"] = value
 
 
 class Comment(object):
@@ -257,8 +324,6 @@ def sub(element, tag, attrs=None, kids=None):
 
 
 def _parse_prolog(text, i):
-    prolog = Prolog()
-
     if text[i] != "<":
         raise ParseError
     i += 1
@@ -267,14 +332,21 @@ def _parse_prolog(text, i):
         raise ParseError
     i += 1
     i = ignore_blank(text, i)
-    if text[i:i+3] != "xml":
-        raise ParseError
-    i += 3
+
+    ###
+    tag, i = _read_till(text, i, " ")
+    ###
+
+    if tag == "xml":
+        element = Prolog()
+    else:
+        element = QMElement(tag)
+
     i = ignore_blank(text, i)
 
     while i < len(text) and text[i] not in "?>":
         key, value, i = _read_attr(text, i)
-        setattr(prolog, key.lower(), value)
+        element.attrs[key.lower()] = value
         i = ignore_blank(text, i)
 
     i = ignore_blank(text, i)
@@ -285,7 +357,7 @@ def _parse_prolog(text, i):
     if text[i] != ">":
         raise ParseError
     i += 1
-    return prolog, i
+    return element, i
 
 
 def _parse_doctype(text, i):
@@ -470,22 +542,28 @@ def _read_attr(text, i):
 
 
 def parse(text: str, do_strip=False, chars=None, dont_do_tags=None) -> Xml:
+    xml = Xml()
     i = ignore_blank(text, 0)
-    prolog = None
-    if "<?xml" == text[i:i+5]:
-        prolog, i = _parse_prolog(text, i)
 
-    i = ignore_blank(text, i)
-    doctype = None
+    while "<?" == text[i:i+2]:
+        e, i = _parse_prolog(text, i)
+        if isinstance(e, Prolog):
+            if xml.prolog:
+                raise ParseError
+            xml.prolog = e
+        elif isinstance(e, QMElement):
+            xml.other_qmelements.append(e)
+        i = ignore_blank(text, i)
+
     if "<!DOCTYPE" == text[i:i+9]:
         doctype, i = _parse_doctype(text, i)
+        xml.doctype = doctype
 
     i = ignore_blank(text, i)
     root, i = _parse_element(text, i, do_strip, chars, dont_do_tags)
+    xml.root = root
 
-    xl = Xml(root=root, prolog=prolog, doctype=doctype)
-
-    return xl
+    return xml
 
 
 def _read_till(text, bi, stoptext):
