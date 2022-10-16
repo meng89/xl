@@ -1,8 +1,6 @@
 from setuptools import setup
 
-
 NAME = "xl"
-
 
 DESCRIPTION = 'A Python module to process XML'
 
@@ -27,7 +25,4 @@ setup(name=NAME,
       author_email='ObserverChan@gmail.com',
       license='MIT',
       url=URL,
-      packages=[
-          'xl'
-      ],
       classifiers=CLASSIFIERS)
