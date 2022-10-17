@@ -1,4 +1,4 @@
-# xl mean "XML without mire"　无坑 XML
+# xl means "XML without mire"　无坑 XML
 
 # Installtion　安装
 ## pip 
