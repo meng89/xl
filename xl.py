@@ -1,11 +1,13 @@
 # The MIT License
 
+# https://github.com/meng89/xl
+
 """ XML without mire """
 
-__version__ = "0.1.0"
+__version__ = "0.1.1"
 
 
-from abc import abstractmethod
+from abc import abstractmethod as _abstractmethod
 
 
 _xml_escape_table = [
@@ -116,32 +118,9 @@ class Xml(object):
 
 
 class _Node(object):
-    @abstractmethod
+    @_abstractmethod
     def to_str(self):
         pass
-
-
-class _Prolog(_Node):
-    def __init__(self, version=None, encoding=None, standalone=None):
-        self.version = version or '1.0'
-        self.encoding = encoding or 'UTF-8'
-        self.standalone = standalone
-
-    def to_str(self):
-        if not (self.version or self.encoding or self.standalone):
-            return ''
-
-        s = '<?xml'
-        if self.version:
-            s += ' version="{}"'.format(self.version)
-        if self.encoding:
-            s += ' encoding="{}"'.format(self.encoding.upper())
-        if self.standalone is not None:
-            s += ' standalone="'
-            s += self.standalone.lower()
-            s += '"'
-        s += ' ?>'
-        return s
 
 
 class DocType(_Node):
@@ -327,11 +306,11 @@ def _parse_prolog(text, i):
     if text[i] != "<":
         raise ParseError
     i += 1
-    i = ignore_blank(text, i)
+    i = _ignore_blank(text, i)
     if text[i] != "?":
         raise ParseError
     i += 1
-    i = ignore_blank(text, i)
+    i = _ignore_blank(text, i)
 
     ###
     tag, i = _read_till(text, i, " ")
@@ -342,18 +321,18 @@ def _parse_prolog(text, i):
     else:
         element = QMElement(tag)
 
-    i = ignore_blank(text, i)
+    i = _ignore_blank(text, i)
 
     while i < len(text) and text[i] not in "?>":
         key, value, i = _read_attr(text, i)
         element.attrs[key.lower()] = value
-        i = ignore_blank(text, i)
+        i = _ignore_blank(text, i)
 
-    i = ignore_blank(text, i)
+    i = _ignore_blank(text, i)
     if text[i] != "?":
         raise ParseError
     i += 1
-    i = ignore_blank(text, i)
+    i = _ignore_blank(text, i)
     if text[i] != ">":
         raise ParseError
     i += 1
@@ -387,7 +366,7 @@ def _parse_doctype(text, i):
 _blank = (" ", "\t", "\n", "\r")
 
 
-def ignore_blank(text, i):
+def _ignore_blank(text, i):
     while i < len(text):
         if text[i] not in _blank:
             return i
@@ -396,7 +375,7 @@ def ignore_blank(text, i):
     return i
 
 
-def read_tag(text, i):
+def _read_tag(text, i):
     tag = ""
     while i < len(text) and text[i] not in " />":
         tag += text[i]
@@ -404,7 +383,7 @@ def read_tag(text, i):
     return tag, i
 
 
-def read_endtag(text, i):
+def _read_endtag(text, i):
     tag = ""
     while i < len(text) and text[i] not in " >":
         tag += text[i]
@@ -412,7 +391,7 @@ def read_endtag(text, i):
     return tag, i
 
 
-def read_text(text, i):
+def _read_text(text, i):
     t = ""
     while i < len(text) and text[i] not in "<":
         t += text[i]
@@ -430,23 +409,23 @@ def _parse_element(text, i, do_strip=False, chars=None, dont_do_tags=None):
     if text[i] != "<":
         raise ParseError
 
-    i = ignore_blank(text, i + 1)
-    tag, i = read_tag(text, i)
+    i = _ignore_blank(text, i + 1)
+    tag, i = _read_tag(text, i)
     e = Element(tag=tag)
 
-    i = ignore_blank(text, i)
+    i = _ignore_blank(text, i)
     while i < len(text) and text[i] not in "/>":
         # <a id="1">xx<b/>yy</a>
         #          ↖
         key, value, i = _read_attr(text, i)
         e.attrs[key] = value
-        i = ignore_blank(text, i)
+        i = _ignore_blank(text, i)
 
     if text[i] == "/":
         # <a id="1">xx<b/>yy</a>
         #               ↑
         i += 1
-        i = ignore_blank(text, i)
+        i = _ignore_blank(text, i)
         if text[i] != ">":
             raise ParseError
         i += 1
@@ -465,20 +444,20 @@ def _parse_element(text, i, do_strip=False, chars=None, dont_do_tags=None):
             #             ↑     ↑
             kid_e_i = i
             i += 1
-            i = ignore_blank(text, i)
+            i = _ignore_blank(text, i)
             if text[i] == "/":
                 # <a id="1">xx<b/>yy</a>
                 #                    ↑
                 i += 1
-                i = ignore_blank(text, i)
+                i = _ignore_blank(text, i)
 
                 # <a id="1">xx<b/>yy</a>
                 #                     ↑
-                end_tag, i = read_endtag(text, i)
+                end_tag, i = _read_endtag(text, i)
                 if tag != end_tag:
                     print(tag, end_tag)
                     raise ParseError
-                i = ignore_blank(text, i)
+                i = _ignore_blank(text, i)
                 # <a id="1">xx<b/>yy</a>
                 #                      ↑
                 if text[i] != ">":
@@ -511,7 +490,7 @@ def _parse_element(text, i, do_strip=False, chars=None, dont_do_tags=None):
         else:
             # <a id="1">xx<b/>yy</a>
             #           ↑     ↑
-            string_e, i = read_text(text, i)
+            string_e, i = _read_text(text, i)
             # if do_strip:
             #    string_e = string_e.strip(_chars)
             if string_e:
@@ -534,7 +513,7 @@ def _read_attr(text, i):
 
     key, i = _read_till(text, i, "=")
     key = key.strip()
-    i = ignore_blank(text, i)
+    i = _ignore_blank(text, i)
     qmark = text[i]
     i += 1
     string_value, i = _read_till(text, i, qmark)
@@ -543,7 +522,7 @@ def _read_attr(text, i):
 
 def parse(text: str, do_strip=False, chars=None, dont_do_tags=None) -> Xml:
     xml = Xml()
-    i = ignore_blank(text, 0)
+    i = _ignore_blank(text, 0)
 
     while "<?" == text[i:i+2]:
         e, i = _parse_prolog(text, i)
@@ -553,13 +532,13 @@ def parse(text: str, do_strip=False, chars=None, dont_do_tags=None) -> Xml:
             xml.prolog = e
         elif isinstance(e, QMElement):
             xml.other_qmelements.append(e)
-        i = ignore_blank(text, i)
+        i = _ignore_blank(text, i)
 
     if "<!DOCTYPE" == text[i:i+9]:
         doctype, i = _parse_doctype(text, i)
         xml.doctype = doctype
 
-    i = ignore_blank(text, i)
+    i = _ignore_blank(text, i)
     root, i = _parse_element(text, i, do_strip, chars, dont_do_tags)
     xml.root = root
 
