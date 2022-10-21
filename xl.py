@@ -4,7 +4,7 @@
 
 """ XML without mire """
 
-__version__ = "0.1.1"
+__version__ = "0.2.0"
 
 
 from abc import abstractmethod as _abstractmethod
@@ -71,8 +71,8 @@ def _is_straight_line(element):
 
 
 def _is_have_string_kid(kids):
-    for kid in kids:
-        if isinstance(kid, str):
+    for _kid in kids:
+        if isinstance(_kid, str):
             return True
     return False
 
@@ -160,6 +160,12 @@ class Element(_Node):
     def kids(self):
         return self._kids
 
+    def ekid(self, *args, **kwargs):
+        self._kids.append(Element(*args, **kwargs))
+
+    def skid(self, string: str):
+        self._kids.append(string)
+
     def to_str(self,
                do_pretty=False,
                begin_indent=0,
@@ -188,21 +194,21 @@ class Element(_Node):
 
             _indent_text = '\n' + char * (begin_indent + step)
             real_do_pretty = do_pretty and self.tag not in dont_do_tags and self not in dont_do_tags
-            for kid in self._kids:
+            for _kid in self._kids:
                 if real_do_pretty:
                     s += _indent_text
 
-                if isinstance(kid, str):
-                    s += _escape(kid, _xml_escape_table)
+                if isinstance(_kid, str):
+                    s += _escape(_kid, _xml_escape_table)
 
-                elif isinstance(kid, Element):
-                    s += kid.to_str(real_do_pretty,
-                                    begin_indent + step,
-                                    step,
-                                    char,
-                                    dont_do_tags,
-                                    self_closing
-                                    )
+                elif isinstance(_kid, Element):
+                    s += _kid.to_str(real_do_pretty,
+                                     begin_indent + step,
+                                     step,
+                                     char,
+                                     dont_do_tags,
+                                     self_closing
+                                     )
             if real_do_pretty:
                 s += '\n' + char * begin_indent
 
@@ -225,16 +231,16 @@ class Element(_Node):
         es = []
         if self.tag == tag:
             es.append(self)
-        for kid in self.kids:
-            if isinstance(kid, Element):
-                es.extend(kid.find_all(tag))
+        for _kid in self.kids:
+            if isinstance(_kid, Element):
+                es.extend(_kid.find_all(tag))
         return es
 
     def find_kids(self, tag):
         kids = []
-        for kid in self.kids:
-            if isinstance(kid, Element) and kid.tag == tag:
-                kids.append(kid)
+        for _kid in self.kids:
+            if isinstance(_kid, Element) and _kid.tag == tag:
+                kids.append(_kid)
         return kids
 
 
@@ -296,10 +302,14 @@ class Comment(object):
         return "<!-- {} -->".format(_escape(self.text, _xml_escape_table))
 
 
-def sub(element, tag, attrs=None, kids=None):
+def skid(element, tag, attrs=None, kids=None):
     sub_element = Element(tag, attrs, kids)
     element.kids.append(sub_element)
     return sub_element
+
+
+def sub(*args, **kwargs):
+    return skid(*args, **kwargs)
 
 
 def _parse_prolog(text, i):
@@ -483,8 +493,8 @@ def _parse_element(text, i, do_strip=False, chars=None, dont_do_tags=None):
             else:
                 # <a id="1">xx<b/>yy</a>
                 #             ↑
-                kid, i = _parse_element(text, kid_e_i, do_strip, chars, dont_do_tags)
-                temp_kids.append(kid)
+                _kid, i = _parse_element(text, kid_e_i, do_strip, chars, dont_do_tags)
+                temp_kids.append(_kid)
                 # e.kids.append(kid)
 
         else:
