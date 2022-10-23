@@ -54,12 +54,28 @@ class MyTestCase(unittest.TestCase):
     def test_something(self):
         xml1 = xl.parse(_xml1_text, do_strip=True, dont_do_tags=["p"])
         xml2 = get_xml2()
-        print("####")
+        print("########")
         print(xml1.to_str(do_pretty=False, dont_do_tags=["p"]))
         print("####")
         print(xml2.to_str(do_pretty=False, dont_do_tags=["p"]))
-        print("####")
+        print("########")
         self.assertEqual(xml1.to_str(), xml2.to_str())  # add assertion here
+
+
+xml3_text = """ <a class="class1" id="id1">text<c/></a> """
+
+
+class MyTestCase2(unittest.TestCase):
+    def test_something(self):
+        xml3 = xl.parse(xml3_text, do_strip=True)
+        root2 = xl.parse_e(xml3_text)
+        xml4 = xl.Xml(root=root2)
+        print("########")
+        print(xml3.to_str(self_closing=False))
+        print("####")
+        print(xml4.to_str(self_closing=False))
+        print("########")
+        self.assertEqual(xml3.to_str(self_closing=False), xml4.to_str(self_closing=False))
 
 
 if __name__ == '__main__':

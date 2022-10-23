@@ -4,7 +4,7 @@
 
 """ XML without mire """
 
-__version__ = "0.2.0"
+__version__ = "0.2.1"
 
 
 from abc import abstractmethod as _abstractmethod
@@ -161,10 +161,13 @@ class Element(_Node):
         return self._kids
 
     def ekid(self, *args, **kwargs):
-        self._kids.append(Element(*args, **kwargs))
+        e = Element(*args, **kwargs)
+        self._kids.append(e)
+        return e
 
     def skid(self, string: str):
         self._kids.append(string)
+        return string
 
     def to_str(self,
                do_pretty=False,
@@ -555,6 +558,15 @@ def parse(text: str, do_strip=False, chars=None, dont_do_tags=None) -> Xml:
     return xml
 
 
+def parse_e(text, *args, **kwargs):
+    i = _ignore_blank(text, 0)
+    root, i = _parse_element(text, i, *args, **kwargs)
+    i = _ignore_blank(text, i)
+    if len(text) != i:
+        raise ParseError("Some text could not parse: {}".format(repr(text[i:])))
+    return root
+
+
 def _read_till(text, bi, stoptext):
     _text = ""
     while bi < len(text):
@@ -563,7 +575,6 @@ def _read_till(text, bi, stoptext):
         else:
             _text += text[bi]
             bi += 1
-
     return _text, bi
 
 
