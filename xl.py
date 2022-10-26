@@ -4,7 +4,7 @@
 
 """ XML without mire """
 
-__version__ = "0.2.1"
+__version__ = "0.2.2"
 
 
 from abc import abstractmethod as _abstractmethod
@@ -77,7 +77,7 @@ def _is_have_string_kid(kids):
     return False
 
 
-class XLError(Exception):
+class ToStrError(Exception):
     pass
 
 
@@ -212,6 +212,8 @@ class Element(_Node):
                                      dont_do_tags,
                                      self_closing
                                      )
+                else:
+                    raise TypeError("Kid type:{} not supported by to_str().".format(type(_kid)))
             if real_do_pretty:
                 s += '\n' + char * begin_indent
 
