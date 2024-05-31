@@ -17,7 +17,7 @@ _xml1_text = \
         <sf></sf>
     </head>
     <body>
-        <p>Moved to <a href="http://example.org/">example.org</a>.</p>
+        <p>Moved to <a href="http://example.org/">example.org</a>.<!--这是xml注释--></p>
         
            <span />
     </body>
@@ -42,6 +42,7 @@ def get_xml2():
     a = xl.sub(p, "a", attrs={"href": "http://example.org/"})
     a.kids.append("example.org")
     p.kids.append(".")
+    p.kids.append(xl.Comment("这是xml注释"))
     _span = xl.sub(body, "span")
 
     xml = xl.Xml(prolog=prolog, doctype=doctype, root=html)
