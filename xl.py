@@ -2,16 +2,15 @@
 
 # https://github.com/meng89/xl
 
-""" XML without mire """
+""" XML without mire! / 无坑 XML ！"""
 
-__version__ = "0.2.2"
 
+__version__ = "0.3.0"
 
 from abc import abstractmethod as _abstractmethod
 
-
 _xml_escape_table = [
-    ('&', '&amp;'),
+    ('&', '&amp;'),  # I guess this must be the first one?
     ('<', '&lt;'),
     ('>', '&gt;')
 ]
@@ -21,7 +20,9 @@ _xml_attr_escape_table = _xml_escape_table + [
     ("'", "&apos;")
 ]
 
-_xml_comment_escape_table = [("-", "&#45;")]
+_xml_comment_escape_table = [
+    ("-", "&#45;")
+]
 
 
 def _unescape(text, table):
@@ -81,42 +82,6 @@ class ToStrError(Exception):
     pass
 
 
-class Xml(object):
-    def __init__(self, root=None, prolog=None, doctype=None):
-        self.prolog: Prolog or None = prolog
-        self.doctype: DocType or None = doctype
-        self.root: Element or None = root
-        self._other_qmelements = []
-
-    @property
-    def other_qmelements(self):
-        return self._other_qmelements
-
-    def to_str(self,
-               do_pretty=False,
-               begin_indent=0,
-               step=4,
-               char=" ",
-               dont_do_tags=None,
-               self_closing=True):
-        s = ''
-        if self.prolog:
-            s += self.prolog.to_str() + '\n'
-
-        for other_qmelement in self.other_qmelements:
-            s += other_qmelement.to_str() + '\n'
-
-        if self.doctype:
-            s += self.doctype.to_str() + '\n'
-        s += self.root.to_str(do_pretty=do_pretty,
-                              begin_indent=begin_indent,
-                              step=step,
-                              char=char,
-                              dont_do_tags=dont_do_tags,
-                              self_closing=self_closing)
-        return s
-
-
 class _Node(object):
     @_abstractmethod
     def to_str(self):
@@ -127,7 +92,7 @@ class DocType(_Node):
     def __init__(self, text=None):
         self.text = text or "html"
 
-    def to_str(self):
+    def to_str(self, *args, **kwargs):
         return "<!DOCTYPE {}>".format(self.text)
 
 
@@ -212,6 +177,8 @@ class Element(_Node):
                                      dont_do_tags,
                                      self_closing
                                      )
+                elif isinstance(_kid, Comment):
+                    s += _kid.to_str()
                 else:
                     raise TypeError("Kid type:{} not supported by to_str().".format(type(_kid)))
             if real_do_pretty:
@@ -249,19 +216,21 @@ class Element(_Node):
         return kids
 
 
+# question mark element
 class QMElement(Element):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
     def to_str(self, *args, **kwargs):
-        s = super().to_str(*args, **kwargs, self_closing=False)
+        kwargs["self_closing"] = False
+        s = super().to_str(*args, **kwargs)
         assert s[-3:] == " />"
         new_s = "<?" + s[1:-3] + "?>"
         return new_s
 
     @property
     def kids(self):
-        raise AttributeError()
+        return []
 
 
 class Prolog(QMElement):
@@ -304,7 +273,7 @@ class Comment(object):
         self.text = text
 
     def to_str(self):
-        return "<!-- {} -->".format(_escape(self.text, _xml_escape_table))
+        return "<!--{}-->".format(_escape(self.text, _xml_escape_table))
 
 
 def skid(element, tag, attrs=None, kids=None):
@@ -318,12 +287,13 @@ def sub(*args, **kwargs):
 
 
 def _parse_prolog(text, i):
+    print("here:", repr(text), repr(i))
     if text[i] != "<":
-        raise ParseError
+        return False, None
     i += 1
     i = _ignore_blank(text, i)
     if text[i] != "?":
-        raise ParseError
+        return False, None
     i += 1
     i = _ignore_blank(text, i)
 
@@ -345,18 +315,18 @@ def _parse_prolog(text, i):
 
     i = _ignore_blank(text, i)
     if text[i] != "?":
-        raise ParseError
+        return False, None
     i += 1
     i = _ignore_blank(text, i)
     if text[i] != ">":
-        raise ParseError
+        return False, None
     i += 1
-    return element, i
+    return True, (element, i)
 
 
 def _parse_doctype(text, i):
-    if text[i:i+10] != "<!DOCTYPE ":
-        raise ParseError
+    if text[i:i + 10] != "<!DOCTYPE ":
+        return False, None
     i += 10
     _text = ""
 
@@ -375,7 +345,7 @@ def _parse_doctype(text, i):
             i += 1
 
     i += 1
-    return DocType(_text), i
+    return True, (DocType(_text), i)
 
 
 _blank = (" ", "\t", "\n", "\r")
@@ -406,6 +376,14 @@ def _read_endtag(text, i):
     return tag, i
 
 
+def _parse_string(text, i) -> tuple:
+    s, i = _read_text(text, i)
+    if s:
+        return True, (s, i)
+    else:
+        return False, None
+
+
 def _read_text(text, i):
     t = ""
     while i < len(text) and text[i] not in "<":
@@ -415,20 +393,27 @@ def _read_text(text, i):
 
 
 #  ↑↓←→↖↗↙↘
-def _parse_element(text, i, do_strip=False, chars=None, dont_do_tags=None):
-    chars = chars or " \n\r\t"
+def _parse_element(text, i, do_strip=False, dont_do_tags=None):
     dont_do_tags = dont_do_tags or []
 
     # <a id="1">xx<b/>yy</a>
     # ↑           ↑
     if text[i] != "<":
-        raise ParseError
+        return False, None
 
     i = _ignore_blank(text, i + 1)
-    tag, i = _read_tag(text, i)
-    e = Element(tag=tag)
 
+    # <a level="1"></a>
+    # <a level="1" />
+
+    tag, i = _read_tag(text, i)
+    if not tag:
+        return False, None
+
+    e = Element(tag=tag)
     i = _ignore_blank(text, i)
+
+    # 读取属性
     while i < len(text) and text[i] not in "/>":
         # <a id="1">xx<b/>yy</a>
         #          ↖
@@ -436,96 +421,74 @@ def _parse_element(text, i, do_strip=False, chars=None, dont_do_tags=None):
         e.attrs[key] = value
         i = _ignore_blank(text, i)
 
+    # />
+    # 自封闭标签，到此结束
     if text[i] == "/":
         # <a id="1">xx<b/>yy</a>
         #               ↑
         i += 1
         i = _ignore_blank(text, i)
         if text[i] != ">":
-            raise ParseError
+            return False, None
         i += 1
-        return e, i
-
+        i = _ignore_blank(text, i)
+        return True, (e, i)
+    # >
+    # 非自封闭标签，继续读取子元素
     elif text[i] == ">":
         # <a id="1">xx<b/>yy</a>
         #          ↑
         i += 1
 
-    temp_kids = []
+    else:
+        raise Exception
+    #######
 
-    while i < len(text):
-        if text[i] == "<":
-            # <a id="1">xx<b/>yy</a>
-            #             ↑     ↑
-            kid_e_i = i
-            i += 1
-            i = _ignore_blank(text, i)
-            if text[i] == "/":
-                # <a id="1">xx<b/>yy</a>
-                #                    ↑
-                i += 1
-                i = _ignore_blank(text, i)
+    _kids, i = _read_subs(text, i, do_strip=do_strip, dont_do_tags=dont_do_tags)
+    for x in _kids:
+        x2 = x
+        if isinstance(x, str) and tag not in dont_do_tags:
+            x2 = x.strip()
+        if x2:
+            e.kids.append(x2)
 
-                # <a id="1">xx<b/>yy</a>
-                #                     ↑
-                end_tag, i = _read_endtag(text, i)
-                if tag != end_tag:
-                    print(tag, end_tag)
-                    raise ParseError
-                i = _ignore_blank(text, i)
-                # <a id="1">xx<b/>yy</a>
-                #                      ↑
-                if text[i] != ">":
-                    raise ParseError
-                i += 1
+    # </a>
+    # kids 读完了，该读取结尾了，结尾必然是这种格式：</a>
+    if text[i] != "<":
+        return False, None
+    i += 1
 
-                for k in temp_kids:
-                    if isinstance(k, str):
-                        if do_strip and e.tag not in dont_do_tags:
-                            _s = k.strip(chars)
-                        else:
-                            _s = k
-                        if not _s:
-                            continue
-                        _kid = _unescape(_s, _xml_escape_table)
-                    else:
-                        _kid = k
+    i = _ignore_blank(text, i)
+    if text[i] != "/":
+        return False, None
+    i += 1
 
-                    e.kids.append(_kid)
+    i = _ignore_blank(text, i)
+    if text[i:i+len(tag)] != tag:
+        return False, None
+    i += len(tag)
 
-                return e, i
+    i = _ignore_blank(text, i)
+    if text[i] != ">":
+        return False, None
+    i += 1
 
-            else:
-                # <a id="1">xx<b/>yy</a>
-                #             ↑
-                _kid, i = _parse_element(text, kid_e_i, do_strip, chars, dont_do_tags)
-                temp_kids.append(_kid)
-                # e.kids.append(kid)
+    return True, (e, i)
 
-        else:
-            # <a id="1">xx<b/>yy</a>
-            #           ↑     ↑
-            string_e, i = _read_text(text, i)
-            # if do_strip:
-            #    string_e = string_e.strip(_chars)
-            if string_e:
-                temp_kids.append(string_e)
-                # e.kids.append(_unescape(string_e, _xml_escape_table))
-    raise ParseError
+    #######
 
 
 def _parse_comment(text, i):
-    if text[i:i+4] != "<!--":
-        raise ParseError
+    if text[i:i + 4] != "<!--":
+        return False, None
     i += 4
 
     comment_text, i = _read_till(text, i, "-->")
-    i += 3
-    return Comment(_unescape(comment_text, _xml_comment_escape_table)), i
+    comment = Comment(_unescape(comment_text, _xml_comment_escape_table))
+    return True, (comment, i)
 
 
 def _read_attr(text, i):
-
     key, i = _read_till(text, i, "=")
     key = key.strip()
     i = _ignore_blank(text, i)
@@ -535,34 +498,122 @@ def _read_attr(text, i):
     return key, _unescape(string_value, _xml_attr_escape_table), i
 
 
-def parse(text: str, do_strip=False, chars=None, dont_do_tags=None) -> Xml:
+class Xml(object):
+    def __init__(self, root=None, prolog=None, doctype=None):
+        self._kids = []
+
+        if prolog:
+            self._kids.append(prolog)
+        if doctype:
+            self._kids.append(doctype)
+        if root:
+            self._kids.append(root)
+
+    @property
+    def kids(self):
+        return self._kids
+
+    @property
+    def root(self):
+        for x in self.kids:
+            if isinstance(x, Element):
+                return x
+
+    @property
+    def prolog(self):
+        for x in self.kids:
+            if isinstance(x, Prolog):
+                return x
+
+    @property
+    def doctype(self):
+        for x in self.kids:
+            if isinstance(x, DocType):
+                return x
+
+    def to_str(self,
+               do_pretty=False,
+               begin_indent=0,
+               step=4,
+               char=" ",
+               dont_do_tags=None,
+               self_closing=True):
+        s = ''
+
+        for x in self.kids:
+            s += x.to_str(do_pretty=do_pretty,
+                          begin_indent=begin_indent,
+                          step=step,
+                          char=char,
+                          dont_do_tags=dont_do_tags,
+                          self_closing=self_closing)
+            s += "\n"
+
+        return s
+
+
+def _read_subs(text: str, i: int, *args, **kwargs) -> tuple:
+    kids = []
+    # while True:
+    while i < len(text):
+        for fun in (_parse_prolog, _parse_doctype, _parse_comment, _parse_element, _parse_string):
+            if fun is _parse_element:
+                is_success, result = fun(text, i, *args, **kwargs)
+            else:
+                is_success, result = fun(text, i)
+
+            if is_success:
+                term, i = result
+                if term != "":
+                    kids.append(term)
+                break
+
+        if is_success:
+            continue
+        else:
+            break
+
+    return kids, i
+
+
+def parse(text, *args, **kwargs) -> Xml:
+    kids, i = _read_subs(text, 0, *args, **kwargs)
+
+    xml = Xml()
+    for kid in kids:
+        if not isinstance(kid, str):
+            xml.kids.append(kid)
+
+    return xml
+
+
+def parse2(text: str, *args, **kwargs) -> Xml:
     xml = Xml()
     i = _ignore_blank(text, 0)
+    kids = []
+    while i < len(text):
+        for fun in (_parse_prolog, _parse_doctype, _parse_comment, _parse_element):
+            if fun is _parse_element:
+                is_success, result = fun(text, i, *args, **kwargs)
+            else:
+                is_success, result = fun(text, i)
 
-    while "<?" == text[i:i+2]:
-        e, i = _parse_prolog(text, i)
-        if isinstance(e, Prolog):
-            if xml.prolog:
-                raise ParseError
-            xml.prolog = e
-        elif isinstance(e, QMElement):
-            xml.other_qmelements.append(e)
-        i = _ignore_blank(text, i)
+            if is_success:
+                term, i = result
+                kids.append(term)
+                i = _ignore_blank(text, i)
+                break
 
-    if "<!DOCTYPE" == text[i:i+9]:
-        doctype, i = _parse_doctype(text, i)
-        xml.doctype = doctype
+            else:
+                continue
 
-    i = _ignore_blank(text, i)
-    root, i = _parse_element(text, i, do_strip, chars, dont_do_tags)
-    xml.root = root
-
+    xml.kids[:] = kids
     return xml
 
 
 def parse_e(text, *args, **kwargs):
     i = _ignore_blank(text, 0)
-    root, i = _parse_element(text, i, *args, **kwargs)
+    is_success, (root, i) = _parse_element(text, i, *args, **kwargs)
     i = _ignore_blank(text, i)
     if len(text) != i:
         raise ParseError("Some text could not parse: {}".format(repr(text[i:])))
@@ -572,8 +623,8 @@ def parse_e(text, *args, **kwargs):
 def _read_till(text, bi, stoptext):
     _text = ""
     while bi < len(text):
-        if text[bi:bi+len(stoptext)] == stoptext:
-            return _text, bi + 1
+        if text[bi:bi + len(stoptext)] == stoptext:
+            return _text, bi + len(stoptext)
         else:
             _text += text[bi]
             bi += 1

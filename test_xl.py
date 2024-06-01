@@ -21,7 +21,7 @@ _xml1_text = \
         
            <span />
     </body>
-                        
+
 </html>
 """
 
@@ -46,8 +46,8 @@ def get_xml2():
     _span = xl.sub(body, "span")
 
     xml = xl.Xml(prolog=prolog, doctype=doctype, root=html)
-    xml.other_qmelements.append(xl.QMElement("xml-model", {"href": "http://www.docbook.org/xml/5.0/rng/docbook.rng"}))
-    xml.other_qmelements.append(xl.QMElement("xml-model", {"href": "http://www.docbook.org/xml/5.0/xsd/docbook.xsd"}))
+    xml.kids.insert(1, xl.QMElement("xml-model", {"href": "http://www.docbook.org/xml/5.0/rng/docbook.rng"}))
+    xml.kids.insert(2, xl.QMElement("xml-model", {"href": "http://www.docbook.org/xml/5.0/xsd/docbook.xsd"}))
     return xml
 
 
@@ -55,12 +55,16 @@ class MyTestCase(unittest.TestCase):
     def test_something(self):
         xml1 = xl.parse(_xml1_text, do_strip=True, dont_do_tags=["p"])
         xml2 = get_xml2()
-        print("########")
-        print(xml1.to_str(do_pretty=False, dont_do_tags=["p"]))
-        print("####")
-        print(xml2.to_str(do_pretty=False, dont_do_tags=["p"]))
-        print("########")
-        self.assertEqual(xml1.to_str(), xml2.to_str())  # add assertion here
+        print()
+        print("########/BEGING")
+        print("########/xml1:")
+        xml1_str = xml1.to_str(do_pretty=True, dont_do_tags=["p"])
+        print(xml1_str)
+        print("########/xml2:")
+        xml2_str = xml2.to_str(do_pretty=True, dont_do_tags=["p"])
+        print(xml2_str)
+        print("########/END")
+        self.assertEqual(xml1_str, xml2_str)
 
 
 xml3_text = """ <a class="class1" id="id1">text<c/></a> """
@@ -71,11 +75,13 @@ class MyTestCase2(unittest.TestCase):
         xml3 = xl.parse(xml3_text, do_strip=True)
         root2 = xl.parse_e(xml3_text)
         xml4 = xl.Xml(root=root2)
-        print("########")
+        print()
+        print("########/BEGING")
+        print("########/xml3:")
         print(xml3.to_str(self_closing=False))
-        print("####")
+        print("########/xml4:")
         print(xml4.to_str(self_closing=False))
-        print("########")
+        print("########/END")
         self.assertEqual(xml3.to_str(self_closing=False), xml4.to_str(self_closing=False))
 
 
