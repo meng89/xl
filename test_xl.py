@@ -85,5 +85,17 @@ class MyTestCase2(unittest.TestCase):
         self.assertEqual(xml3.to_str(self_closing=False), xml4.to_str(self_closing=False))
 
 
+class MytestCase3(unittest.TestCase):
+    def test_api(self):
+        xml3 = xl.parse(xml3_text, do_strip=True)
+        for x in xml3.root.kids:
+            if isinstance(x, xl.Element):
+                print(repr(x.tag))
+
+        print("here", xml3.prolog, xml3.root, xml3.doctype)
+
+        self.assertEqual(len(xml3.root.find_kids("c")), 1)
+
+
 if __name__ == '__main__':
     unittest.main()

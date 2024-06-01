@@ -5,7 +5,7 @@
 """ XML without mire! / 无坑 XML ！"""
 
 
-__version__ = "0.3.0"
+__version__ = "0.3.1"
 
 from abc import abstractmethod as _abstractmethod
 
@@ -515,19 +515,19 @@ class Xml(object):
     @property
     def root(self):
         for x in self.kids:
-            if isinstance(x, Element):
+            if type(x) is type(Element("x")):
                 return x
 
     @property
     def prolog(self):
         for x in self.kids:
-            if isinstance(x, Prolog):
+            if type(x) is type(Prolog()):
                 return x
 
     @property
     def doctype(self):
         for x in self.kids:
-            if isinstance(x, DocType):
+            if type(x) is type(DocType()):
                 return x
 
     def to_str(self,
@@ -583,30 +583,6 @@ def parse(text, *args, **kwargs) -> Xml:
         if not isinstance(kid, str):
             xml.kids.append(kid)
 
-    return xml
-
-
-def parse2(text: str, *args, **kwargs) -> Xml:
-    xml = Xml()
-    i = _ignore_blank(text, 0)
-    kids = []
-    while i < len(text):
-        for fun in (_parse_prolog, _parse_doctype, _parse_comment, _parse_element):
-            if fun is _parse_element:
-                is_success, result = fun(text, i, *args, **kwargs)
-            else:
-                is_success, result = fun(text, i)
-
-            if is_success:
-                term, i = result
-                kids.append(term)
-                i = _ignore_blank(text, i)
-                break
-
-            else:
-                continue
-
-    xml.kids[:] = kids
     return xml
 
 
