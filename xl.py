@@ -287,7 +287,6 @@ def sub(*args, **kwargs):
 
 
 def _parse_prolog(text, i):
-    print("here:", repr(text), repr(i))
     if text[i] != "<":
         return False, None
     i += 1
