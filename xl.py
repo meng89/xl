@@ -5,24 +5,26 @@
 """ XML without mire! / 无坑 XML ！"""
 
 
-__version__ = "0.3.1"
+__version__ = "0.4.0"
 
 from abc import abstractmethod as _abstractmethod
 
-_xml_escape_table = [
+_xml_escape_table = (
     ('&', '&amp;'),  # I guess this must be the first one?
     ('<', '&lt;'),
+    # 大于好可能无需转义
+    # https://stackoverflow.com/questions/76342593/xmlmapper-not-escaping-the-greater-than-character-but-does-escape-the-rest
     ('>', '&gt;')
-]
+)
 
-_xml_attr_escape_table = _xml_escape_table + [
+_xml_attr_escape_table = _xml_escape_table + (
     ('"', '&quot;'),
     ("'", "&apos;")
-]
+)
 
-_xml_comment_escape_table = [
+_xml_comment_escape_table = (
     ("-", "&#45;")
-]
+)
 
 
 def _unescape(text, table):
@@ -107,6 +109,9 @@ class Element(_Node):
         self._attrs = dict(attrs) if attrs else {}
         self._kids = list(kids) if kids else []
 
+        # 通过 Element() 建立的节点，默认设置为自闭合标签
+        self.self_closing = True
+
     @property
     def tag(self):
         return self._tag
@@ -121,18 +126,45 @@ class Element(_Node):
     def attrs(self):
         return self._attrs
 
+    @attrs.setter
+    def attrs(self, value):
+        if not isinstance(dict, value):
+            raise ValueError
+        self._attrs = value
+
     @property
     def kids(self):
         return self._kids
 
+    @kids.setter
+    def kids(self, value):
+        if not isinstance(value, list):
+            raise ValueError
+        self._kids = value
+
+    @property
+    def self_closing(self):
+        return self._self_closing
+
+    @self_closing.setter
+    def self_closing(self, value):
+        if not isinstance(value, bool):
+            raise Exception
+        self._self_closing = value
+
     def ekid(self, *args, **kwargs):
         e = Element(*args, **kwargs)
-        self._kids.append(e)
+        self.kids.append(e)
         return e
 
     def skid(self, string: str):
-        self._kids.append(string)
+        self.kids.append(string)
         return string
+
+    def ckid(self, string: str):
+        c = Comment(string)
+        self.kids.append(c)
+        return c
 
     def to_str(self,
                do_pretty=False,
@@ -161,16 +193,16 @@ class Element(_Node):
             s += '>'
 
             _indent_text = '\n' + char * (begin_indent + step)
-            real_do_pretty = do_pretty and self.tag not in dont_do_tags and self not in dont_do_tags
+            do_pretty_ultimately = do_pretty and self.tag not in dont_do_tags and self not in dont_do_tags
             for _kid in self._kids:
-                if real_do_pretty:
+                if do_pretty_ultimately:
                     s += _indent_text
 
                 if isinstance(_kid, str):
-                    s += _escape(_kid, _xml_escape_table)
+                    s += _escape_element_string(_kid)
 
                 elif isinstance(_kid, Element):
-                    s += _kid.to_str(real_do_pretty,
+                    s += _kid.to_str(do_pretty_ultimately,
                                      begin_indent + step,
                                      step,
                                      char,
@@ -181,16 +213,27 @@ class Element(_Node):
                     s += _kid.to_str()
                 else:
                     raise TypeError("Kid type:{} not supported by to_str().".format(type(_kid)))
-            if real_do_pretty:
+            if do_pretty_ultimately:
                 s += '\n' + char * begin_indent
 
             s += '</{}>'.format(self.tag)
 
         else:
-            if self_closing:
+            if self_closing is True:
+                self_closing_ultimately = True
+            elif self_closing is False:
+                self_closing_ultimately = False
+            elif self_closing is None:
+                self_closing_ultimately = self.self_closing
+            else:
+                raise Exception("HOW?")
+
+            if self_closing_ultimately is True:
+                s += '/>'
+            elif self_closing_ultimately is False:
                 s = s + ">" + '</{}>'.format(self.tag)
             else:
-                s += ' />'
+                raise Exception("HOW?")
 
         return s
 
@@ -222,10 +265,10 @@ class QMElement(Element):
         super().__init__(*args, **kwargs)
 
     def to_str(self, *args, **kwargs):
-        kwargs["self_closing"] = False
+        kwargs["self_closing"] = True
         s = super().to_str(*args, **kwargs)
-        assert s[-3:] == " />"
-        new_s = "<?" + s[1:-3] + "?>"
+        assert s[-2:] == "/>"
+        new_s = "<?" + s[1:-2] + "?>"
         return new_s
 
     @property
@@ -273,7 +316,12 @@ class Comment(object):
         self.text = text
 
     def to_str(self):
-        return "<!--{}-->".format(_escape(self.text, _xml_escape_table))
+        return "<!--{}-->".format(_escape_comment(self.text))
+
+
+def _escape_comment(text):
+    # todo more research
+    return text
 
 
 def skid(element, tag, attrs=None, kids=None):
@@ -378,9 +426,35 @@ def _read_endtag(text, i):
 def _parse_string(text, i) -> tuple:
     s, i = _read_text(text, i)
     if s:
-        return True, (s, i)
+        # return True, (_unescape(s, _xml_escape_table), i)
+        return True, (_unescape_element_string(s), i)
     else:
         return False, None
+
+
+_element_string_table = (
+    ('&', '&amp;'),  # I guess this must be the first one?
+    ('<', '&lt;'),
+    ('>', '&gt;')
+)
+
+
+def _unescape_element_string(text):
+    table = (
+        ('&', '&amp;'),  # I guess this must be the first one?
+        ('<', '&lt;'),
+        ('>', '&gt;')
+    )
+    return _unescape(text, table)
+
+
+def _escape_element_string(text):
+    table = (
+        ('&', '&amp;'),  # I guess this must be the first one?
+        ('<', '&lt;'),
+        ('>', '&gt;')
+    )
+    return _escape(text, table)
 
 
 def _read_text(text, i):
@@ -392,7 +466,7 @@ def _read_text(text, i):
 
 
 #  ↑↓←→↖↗↙↘
-def _parse_element(text, i, do_strip=False, dont_do_tags=None):
+def _parse_element(text, i, do_strip=False, dont_do_tags=None, ignore_comment=True):
     dont_do_tags = dont_do_tags or []
 
     # <a id="1">xx<b/>yy</a>
@@ -401,6 +475,9 @@ def _parse_element(text, i, do_strip=False, dont_do_tags=None):
         return False, None
 
     i = _ignore_blank(text, i + 1)
+
+    if text[i] == "!":
+        return False, None
 
     # <a level="1"></a>
     # <a level="1" />
@@ -431,6 +508,7 @@ def _parse_element(text, i, do_strip=False, dont_do_tags=None):
             return False, None
         i += 1
         i = _ignore_blank(text, i)
+        e.self_closing = True
         return True, (e, i)
     # >
     # 非自封闭标签，继续读取子元素
@@ -443,7 +521,7 @@ def _parse_element(text, i, do_strip=False, dont_do_tags=None):
         raise Exception
     #######
 
-    _kids, i = _read_subs(text, i, do_strip=do_strip, dont_do_tags=dont_do_tags)
+    _kids, i = _read_subs(text, i, do_strip=do_strip, dont_do_tags=dont_do_tags, ignore_comment=ignore_comment)
     for x in _kids:
         x2 = x
         if isinstance(x, str) and tag not in dont_do_tags:
@@ -471,7 +549,7 @@ def _parse_element(text, i, do_strip=False, dont_do_tags=None):
     if text[i] != ">":
         return False, None
     i += 1
-
+    e.self_closing = False
     return True, (e, i)
 
     #######
@@ -483,8 +561,13 @@ def _parse_comment(text, i):
     i += 4
 
     comment_text, i = _read_till(text, i, "-->")
-    comment = Comment(_unescape(comment_text, _xml_comment_escape_table))
-    return True, (comment, i)
+    comment_text2 = Comment(_unescape_comment(comment_text))
+    return True, (comment_text2, i)
+
+
+def _unescape_comment(text):
+    # todo more research
+    return text
 
 
 def _read_attr(text, i):
@@ -536,7 +619,7 @@ class Xml(object):
                step=4,
                char=" ",
                dont_do_tags=None,
-               self_closing=True):
+               self_closing=None):
         s = ''
 
         for x in self.kids:
@@ -551,19 +634,23 @@ class Xml(object):
         return s
 
 
-def _read_subs(text: str, i: int, *args, **kwargs) -> tuple:
+def _read_subs(text: str, i: int, *args, ignore_comment, **kwargs) -> tuple:
     kids = []
     # while True:
     while i < len(text):
         for fun in (_parse_prolog, _parse_doctype, _parse_comment, _parse_element, _parse_string):
             if fun is _parse_element:
-                is_success, result = fun(text, i, *args, **kwargs)
+                is_success, result = fun(text, i, *args, ignore_comment=ignore_comment, **kwargs)
             else:
                 is_success, result = fun(text, i)
 
             if is_success:
                 term, i = result
-                if term != "":
+                if ignore_comment and (type(term) is type(Comment(""))):
+                    pass
+                elif term == "":
+                    pass
+                else:
                     kids.append(term)
                 break
 
@@ -571,12 +658,13 @@ def _read_subs(text: str, i: int, *args, **kwargs) -> tuple:
             continue
         else:
             break
-
+    # print(kids)
     return kids, i
 
 
-def parse(text, *args, **kwargs) -> Xml:
-    kids, i = _read_subs(text, 0, *args, **kwargs)
+def parse(text, do_strip: bool = None, dont_do_tags: list[str] or tuple[str] = None, ignore_comment: bool = False)\
+        -> Xml:
+    kids, i = _read_subs(text, 0, do_strip=do_strip, dont_do_tags=dont_do_tags, ignore_comment=ignore_comment)
 
     xml = Xml()
     for kid in kids:
