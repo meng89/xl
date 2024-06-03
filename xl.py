@@ -157,7 +157,7 @@ class Element(_Node):
         self.kids.append(e)
         return e
 
-    def skid(self, string: str):
+    def skid(self, string: str) -> str:
         self.kids.append(string)
         return string
 
@@ -466,8 +466,14 @@ def _read_text(text, i):
 
 
 #  ↑↓←→↖↗↙↘
-def _parse_element(text, i, do_strip=False, dont_do_tags=None, ignore_comment=True):
-    dont_do_tags = dont_do_tags or []
+# def _parse_element(text, i, do_strip=False, dont_do_tags=None, ignore_comment=False):
+def _parse_element(text, i,
+                   ignore_blank: bool = False, unignore_blank_parent_tags: list = None,
+                   strip: bool = False, unstrip_parent_tags: list = None,
+                   ignore_comment: bool = False):
+
+    unignore_blank_parent_tags = unignore_blank_parent_tags or []
+    unstrip_parent_tags = unstrip_parent_tags or []
 
     # <a id="1">xx<b/>yy</a>
     # ↑           ↑
@@ -521,13 +527,19 @@ def _parse_element(text, i, do_strip=False, dont_do_tags=None, ignore_comment=Tr
         raise Exception
     #######
 
-    _kids, i = _read_subs(text, i, do_strip=do_strip, dont_do_tags=dont_do_tags, ignore_comment=ignore_comment)
+    _kids, i = _read_subs(text, i,
+                          ignore_blank=ignore_blank, unignore_blank_parent_tags=unignore_blank_parent_tags,
+                          strip=strip, unstrip_parent_tags=unstrip_parent_tags,
+                          ignore_comment=ignore_comment)
     for x in _kids:
-        x2 = x
-        if isinstance(x, str) and tag not in dont_do_tags:
-            x2 = x.strip()
-        if x2:
-            e.kids.append(x2)
+        if isinstance(x, str):
+            if ignore_blank is True and tag not in unignore_blank_parent_tags and x.strip() == "":
+                x = x.strip()
+            if strip is True and tag not in unstrip_parent_tags:
+                x = x.strip()
+
+        if x:
+            e.kids.append(x)
 
     # </a>
     # kids 读完了，该读取结尾了，结尾必然是这种格式：</a>
@@ -623,13 +635,16 @@ class Xml(object):
         s = ''
 
         for x in self.kids:
+            if isinstance(x, str):
+                s += x
+                continue
             s += x.to_str(do_pretty=do_pretty,
                           begin_indent=begin_indent,
                           step=step,
                           char=char,
                           dont_do_tags=dont_do_tags,
                           self_closing=self_closing)
-            s += "\n"
+            # s += "\n"
 
         return s
 
@@ -662,14 +677,19 @@ def _read_subs(text: str, i: int, *args, ignore_comment, **kwargs) -> tuple:
     return kids, i
 
 
-def parse(text, do_strip: bool = None, dont_do_tags: list[str] or tuple[str] = None, ignore_comment: bool = False)\
-        -> Xml:
-    kids, i = _read_subs(text, 0, do_strip=do_strip, dont_do_tags=dont_do_tags, ignore_comment=ignore_comment)
-
+def parse(text,
+          ignore_blank: bool = False, unignore_blank_parent_tags: list = None,
+          strip: bool = False, unstrip_parent_tags: list = None,
+          ignore_comment: bool = False) -> Xml:
     xml = Xml()
+    kids, i = _read_subs(text, 0,
+                         ignore_blank, unignore_blank_parent_tags,
+                         strip, unstrip_parent_tags,
+                         ignore_comment=ignore_comment)
+
     for kid in kids:
-        if not isinstance(kid, str):
-            xml.kids.append(kid)
+        # if not isinstance(kid, str):
+        xml.kids.append(kid)
 
     return xml
 
