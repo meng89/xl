@@ -27,6 +27,8 @@ _xml_comment_escape_table = (
     ("-", "&#45;")
 )
 
+_all_escape_table = _xml_escape_table + _xml_attr_escape_table + _xml_comment_escape_table
+
 
 def _unescape(text, table):
     _text = text
@@ -110,7 +112,18 @@ def sub(*args, **kwargs):
     return skid(*args, **kwargs)
 
 
-def _parse_prolog(text, i):
+def _read_mark(text, i):
+    if text[i] != "<":
+        return False, None
+    i += 1
+    i = _ignore_blank(text, i)
+    if text[i] != "?":
+        return False, None
+    i += 1
+    i = _ignore_blank(text, i)
+
+
+def _parse_prolog_or_qme(text, i):
     if text[i] != "<":
         return False, None
     i += 1
@@ -121,19 +134,29 @@ def _parse_prolog(text, i):
     i = _ignore_blank(text, i)
 
     ###
-    tag, i = _read_till(text, i, " ")
+    tag, i, end = _read_till_strings(text, i, (" ", "?"))
     ###
 
     if tag == "xml":
-        element = Prolog()
+        e = Prolog()
     else:
-        element = QMElement(tag)
+        e = QMElement(tag)
 
-    i = _ignore_blank(text, i)
+    if end == "?":
+        i = _ignore_blank(text, i)
+        if text[i] == ">":
+            i += 1
+            return True, (text, i)
+        else:
+            return False, None
 
-    while i < len(text) and text[i] not in "?>":
+    while i < len(text):
+        if text[i] == "?":
+            i += 1
+            break
+
         key, value, i = _read_attr(text, i)
-        element.attrs[key.lower()] = value
+        e.attrs[key.lower()] = value
         i = _ignore_blank(text, i)
 
     i = _ignore_blank(text, i)
@@ -144,31 +167,76 @@ def _parse_prolog(text, i):
     if text[i] != ">":
         return False, None
     i += 1
-    return True, (element, i)
+    return True, (e, i)
+
+
+def _read_unquoted_string(text, i):
+    return _read_till_strings(text, i, (" ", ">"))
+
+
+def _read_quoted_string(text, i):
+    mark = text[i]
+    i += 1
+    s, i, end = _read_till_strings(text, i, (mark, ))
+    i += 1
+    return s, i, end
+
+
+def _escape_unquoted_string(s):
+    _escape(s, _all_escape_table)
+
+
+def _escape_quoted_string(s):
+    _escape(s, _all_escape_table)
+
+
+def _escape_all(s):
+    _escape(s, _all_escape_table)
+
+
+def _read_till_strings(text, i, strings):
+    old_s = None
+    old_i = None
+    end_s = None
+    for string in strings:
+        new_s, new_i = _read_till(text, i, string)
+        if old_s is None:
+            old_s = new_s
+            old_i = new_i
+            end_s = string
+        else:
+            if len(new_s) < len(old_i):
+                old_s = new_s
+                old_i = new_i
+                end_s = string
+
+    return old_s, old_i, end_s
 
 
 def _parse_doctype(text, i):
     if text[i:i + 10] != "<!DOCTYPE ":
         return False, None
-    i += 10
-    _text = ""
 
-    lessthan = 0
-    greaterthan = 0
+    e = DocType()
+
+    i += 10
+    i = _ignore_blank(text, i)
+
     while i < len(text):
         if text[i] == ">":
-            greaterthan += 1
-        elif text[i] == "<":
-            lessthan += 1
+            return True, (e, i)
 
-        if greaterthan - lessthan == 1:
-            break
+        elif text[i] in ('"', "'"):
+            s, i, end = _read_quoted_string(text, i)
+            e.quoted_strings.append(_escape_quoted_string(s))
+
         else:
-            _text += text[i]
-            i += 1
+            s, i, end = _read_unquoted_string(text, i)
+            e.unquoted_strings.append(_escape_unquoted_string(s))
 
-    i += 1
-    return True, (DocType(_text), i)
+        i = _ignore_blank(text, i)
+
+    return False, None
 
 
 _blank = (" ", "\t", "\n", "\r")
@@ -396,23 +464,6 @@ def _read_subs(text: str, i: int, *args, ignore_comment, **kwargs) -> tuple:
     return kids, i
 
 
-def parse(text,
-          ignore_blank: bool = False, unignore_blank_parent_tags: list = None,
-          strip: bool = False, unstrip_parent_tags: list = None,
-          ignore_comment: bool = False) -> Xml:
-    xml = Xml()
-    kids, i = _read_subs(text, 0,
-                         ignore_blank, unignore_blank_parent_tags,
-                         strip, unstrip_parent_tags,
-                         ignore_comment=ignore_comment)
-
-    for kid in kids:
-        # if not isinstance(kid, str):
-        xml.kids.append(kid)
-
-    return xml
-
-
 def parse_e(text, *args, **kwargs):
     i = _ignore_blank(text, 0)
     is_success, (root, i) = _parse_element(text, i, *args, **kwargs)
@@ -423,14 +474,25 @@ def parse_e(text, *args, **kwargs):
 
 
 def _read_till(text, bi, stoptext):
-    _text = ""
+    s = ""
     while bi < len(text):
         if text[bi:bi + len(stoptext)] == stoptext:
-            return _text, bi + len(stoptext)
+            return s, bi + len(stoptext)
         else:
-            _text += text[bi]
+            s += text[bi]
             bi += 1
-    return _text, bi
+    return s, bi
+
+
+def _read_till2(text, i, stop_s):
+    s = ""
+    while i < len(text):
+        if text[i:].startswith(stop_s):
+            break
+        else:
+            s += text[i]
+
+    return s, len(s)
 
 
 class ParseError(Exception):
@@ -551,7 +613,8 @@ class QMElement(_Base, _Tag, _Attr):
         s = "<?" + self.tag
         attrs_str = self._attrs2str()
         if attrs_str:
-            s += (" " + self._attrs2str())
+            s += " "
+            s += self._attrs2str()
         s += "?>"
 
         return s
@@ -631,7 +694,7 @@ class DocType(_Base):
         if hasattr(value, "__iter__"):
             self._quoted_strings = value
 
-    def to_str(self, *args, **kwargs):
+    def to_str(self, *_args, **_kwargs):
         s = "<!DOCTYPE"
         for unquoted_string in self.unquoted_strings:
             s += " {}".format(unquoted_string)
@@ -772,3 +835,20 @@ class Xml(_Kids):
                                 dont_do_tags,
                                 self_closing,
                                 None)
+
+
+def parse(text,
+          ignore_blank: bool = False, unignore_blank_parent_tags: list = None,
+          strip: bool = False, unstrip_parent_tags: list = None,
+          ignore_comment: bool = False) -> Xml:
+    xml = Xml()
+    kids, i = _read_subs(text, 0,
+                         ignore_blank, unignore_blank_parent_tags,
+                         strip, unstrip_parent_tags,
+                         ignore_comment=ignore_comment)
+
+    for kid in kids:
+        # if not isinstance(kid, str):
+        xml.kids.append(kid)
+
+    return xml

@@ -8,7 +8,10 @@ s = open(xmlfile).read()
 
 s = """ <a><!--CBETA todo type: a--><!--CBETA todo type: newmod--> </a>"""
 s = """<a>&gt;</a>\n"""
-s = """<body>
+s = """
+<?xml version="1.0" ?>
+<?xyz s="1"?>
+<body>
     <p>窗前明月光，</p>hehe
     <p>疑似地上霜。</p><a>  </a><a2/>
     <p>举头望明月，</p>
@@ -19,6 +22,6 @@ xml = xl.parse(s, ignore_blank=True, unignore_blank_parent_tags=[],)
 
 
 print("end")
-print(xml.to_str(self_closing=None))
+print(xml.kids)
 
 
