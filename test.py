@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import xl
+import xl2 as xl
 
 
 xmlfile = "/mnt/data/projects/xml-p5a/T/T01/T01n0001.xml"
@@ -22,6 +22,4 @@ xml = xl.parse(s, ignore_blank=True, unignore_blank_parent_tags=[],)
 
 
 print("end")
-print(xml.kids)
-
-
+print(xml.to_str())

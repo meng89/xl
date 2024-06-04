@@ -205,7 +205,7 @@ def _read_till_strings(text, i, strings):
             old_i = new_i
             end_s = string
         else:
-            if len(new_s) < len(old_i):
+            if len(new_s) < len(old_s):
                 old_s = new_s
                 old_i = new_i
                 end_s = string
@@ -440,7 +440,7 @@ def _read_subs(text: str, i: int, *args, ignore_comment, **kwargs) -> tuple:
     kids = []
     # while True:
     while i < len(text):
-        for fun in (_parse_prolog, _parse_doctype, _parse_comment, _parse_element, _parse_string):
+        for fun in (_parse_prolog_or_qme, _parse_doctype, _parse_comment, _parse_element, _parse_string):
             if fun is _parse_element:
                 is_success, result = fun(text, i, *args, ignore_comment=ignore_comment, **kwargs)
             else:
@@ -499,10 +499,6 @@ class ParseError(Exception):
     pass
 
 
-class _Base:
-    pass
-
-
 class _Tag:
     def __init__(self, tag=None):
         self.tag = tag
@@ -554,7 +550,8 @@ class _Attr:
 
 class _Kids:
     def __init__(self, kids=None):
-        self.kids = kids or None
+        # self.tag = None
+        self.kids = kids or []
 
     @property
     def kids(self):
@@ -572,14 +569,13 @@ class _Kids:
                   step,
                   char,
                   dont_do_tags,
-                  self_closing,
-                  parent_tag
+                  try_self_closing,
                   ):
         s = ""
 
         _indent_text = '\n' + char * (begin_indent + step)
 
-        do_pretty_ultimately = do_pretty and parent_tag not in dont_do_tags
+        do_pretty_ultimately = do_pretty is True and self.tag not in dont_do_tags
 
         for _kid in self._kids:
             if do_pretty_ultimately:
@@ -588,13 +584,13 @@ class _Kids:
             if isinstance(_kid, str):
                 s += _escape_element_string(_kid)
 
-            elif isinstance(_kid, Element):
-                s += _kid.to_str(do_pretty_ultimately,
+            elif isinstance(_kid, _BaseElement):
+                s += _kid.to_str(do_pretty,
                                  begin_indent + step,
                                  step,
                                  char,
                                  dont_do_tags,
-                                 self_closing
+                                 try_self_closing
                                  )
             elif isinstance(_kid, Comment):
                 s += _kid.to_str()
@@ -604,7 +600,13 @@ class _Kids:
             s += '\n' + char * begin_indent
 
 
-class QMElement(_Base, _Tag, _Attr):
+class _BaseElement:
+    @abc.abstractmethod
+    def to_str(self, *args, **kwargs):
+        pass
+
+
+class QMElement(_BaseElement, _Tag, _Attr):
     def __init__(self, tag: str = None, attrs: dict = None):
         _Tag.__init__(self, tag)
         _Attr.__init__(self, attrs)
@@ -625,7 +627,8 @@ class Prolog(QMElement):
         super().__init__("xml")
         self.version = version or "1.0"
         self.encoding = encoding or "UTF-8"
-        self.standalone = standalone
+        if standalone:
+            self.standalone = standalone
 
     @property
     def version(self):
@@ -659,7 +662,7 @@ class Prolog(QMElement):
             raise Exception
 
 
-class Comment(object):
+class Comment(_BaseElement):
     def __init__(self, text):
         self.text = text
 
@@ -668,7 +671,7 @@ class Comment(object):
 
 
 # html thing, not xml thing
-class DocType(_Base):
+class DocType(_BaseElement):
     def __init__(self, unquoted_strings: list = None, quoted_strings: list = None, default_html5=True):
         self.unquoted_strings = unquoted_strings or []
         self.quoted_strings = quoted_strings or []
@@ -706,9 +709,9 @@ class DocType(_Base):
         return s
 
 
-class Element(_Base, _Tag, _Attr, _Kids):
+class Element(_BaseElement, _Tag, _Attr, _Kids):
     def __init__(self, tag: str = None, attrs: dict[str, str] = None, kids: list = None):
-        _Base.__init__(self)
+        _BaseElement.__init__(self)
         _Tag.__init__(self, tag)
         _Attr.__init__(self, attrs)
         _Kids.__init__(self, kids)
@@ -741,13 +744,13 @@ class Element(_Base, _Tag, _Attr, _Kids):
         return es
 
     def to_str(self,
-               do_pretty=False,
-               begin_indent=0,
-               step=4,
-               char=" ",
-               dont_do_tags=None,
-               try_self_closing=True
-               ):
+               do_pretty: bool = False,
+               begin_indent: int = 0,
+               step: int = 4,
+               char: str = " ",
+               dont_do_tags: list[str] = None,
+               try_self_closing: bool = None,
+               ) -> str:
 
         s = "<" + self.tag + self._attrs2str()
 
@@ -758,7 +761,7 @@ class Element(_Base, _Tag, _Attr, _Kids):
                                 char,
                                 dont_do_tags,
                                 try_self_closing,
-                                self.tag)
+                                )
 
             s += '</{}>'.format(self.tag)
 
@@ -817,24 +820,34 @@ class Xml(_Kids):
                 return x
 
     def to_str(self,
-               xml_pretty=False,
-               do_pretty=False,
-               begin_indent=0,
-               step=4,
-               char=" ",
-               dont_do_tags=None,
-               self_closing=True
-               ):
+               new_line_after_kid: bool = False,
+               do_pretty: bool = False,
+               begin_indent: int = 0,
+               step: int = 4,
+               char: str = " ",
+               dont_do_tags: list[str] = None,
+               try_self_closing: bool = None,
+               ) -> str:
 
         s = ""
-        if self.kids:
-            s += self._kids2str(do_pretty,
+        for kid in self.kids:
+            if isinstance(kid, _BaseElement):
+                s += kid.to_str(do_pretty,
                                 begin_indent,
                                 step,
                                 char,
                                 dont_do_tags,
-                                self_closing,
-                                None)
+                                try_self_closing,
+                                )
+            elif isinstance(kid, str):
+                s += kid
+            else:
+                raise Exception("How???")
+
+            if new_line_after_kid:
+                s += "\n"
+
+        return s
 
 
 def parse(text,
