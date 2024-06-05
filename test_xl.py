@@ -1,16 +1,14 @@
 #!/usr/bin/env python3
 
 import unittest
-import xl
+import xl2 as xl
 
 
 _xml1_text = \
     """<?xml version="1.0" encoding="UTF-8"?>
 <?xml-model href="http://www.docbook.org/xml/5.0/rng/docbook.rng"?>
 <?xml-model href="http://www.docbook.org/xml/5.0/xsd/docbook.xsd"?>
-<!DOCTYPE html 
-  PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
-  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
     <head>
                         <title>Virtual Library</title>   
@@ -29,9 +27,9 @@ _xml1_text = \
 def get_xml2():
     prolog = xl.Prolog(version="1.0", encoding="UTF-8")
 
-    doctype = xl.DocType("""html 
-  PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
-  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd\"""")
+    doctype = xl.DocType(unquoted_strings=["html", "PUBLIC"],
+                         quoted_strings=["-//W3C//DTD XHTML 1.0 Strict//EN",
+                                         "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"])
 
     html = xl.Element("html", {"xmlns": "http://www.w3.org/1999/xhtml", "xml:lang": "en", "lang": "en"})
     head = xl.sub(html, "head", kids=[xl.Element("title", kids=["Virtual Library"])])
@@ -53,7 +51,7 @@ def get_xml2():
 
 class MyTestCase(unittest.TestCase):
     def test_something(self):
-        xml1 = xl.parse(_xml1_text, do_strip=True, dont_do_tags=["p"])
+        xml1 = xl.parse(_xml1_text, strip=True, unstrip_parent_tags=["p"])
         xml2 = get_xml2()
         print()
         print("########/BEGING")
@@ -72,22 +70,22 @@ xml3_text = """ <a class="class1" id="id1">text<c/></a> """
 
 class MyTestCase2(unittest.TestCase):
     def test_something(self):
-        xml3 = xl.parse(xml3_text, do_strip=True)
+        xml3 = xl.parse(xml3_text, strip=True)
         root2 = xl.parse_e(xml3_text)
         xml4 = xl.Xml(root=root2)
         print()
         print("########/BEGING")
         print("########/xml3:")
-        print(xml3.to_str(self_closing=False))
+        print(xml3.to_str(try_self_closing=False))
         print("########/xml4:")
-        print(xml4.to_str(self_closing=False))
+        print(xml4.to_str(try_self_closing=False))
         print("########/END")
-        self.assertEqual(xml3.to_str(self_closing=False), xml4.to_str(self_closing=False))
+        self.assertEqual(xml3.to_str(try_self_closing=False), xml4.to_str(try_self_closing=False))
 
 
 class MytestCase3(unittest.TestCase):
     def test_api(self):
-        xml3 = xl.parse(xml3_text, do_strip=True)
+        xml3 = xl.parse(xml3_text, strip=True)
         for x in xml3.root.kids:
             if isinstance(x, xl.Element):
                 print(repr(x.tag))

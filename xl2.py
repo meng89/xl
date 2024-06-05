@@ -312,10 +312,11 @@ def _read_text(text, i):
 #  ↑↓←→↖↗↙↘
 # def _parse_element(text, i, do_strip=False, dont_do_tags=None, ignore_comment=False):
 def _parse_element(text, i,
-                   ignore_blank: bool = False, unignore_blank_parent_tags: list = None,
-                   strip: bool = False, unstrip_parent_tags: list = None,
+                   ignore_blank: bool = False,
+                   unignore_blank_parent_tags: list = None,
+                   strip: bool = False,
+                   unstrip_parent_tags: list = None,
                    ignore_comment: bool = False):
-
     unignore_blank_parent_tags = unignore_blank_parent_tags or []
     unstrip_parent_tags = unstrip_parent_tags or []
 
@@ -326,7 +327,7 @@ def _parse_element(text, i,
 
     i = _ignore_blank(text, i + 1)
 
-    if text[i] == "!":
+    if text[i] in ("?", "!"):
         return False, None
 
     # <a level="1"></a>
@@ -372,9 +373,11 @@ def _parse_element(text, i,
     #######
 
     _kids, i = _read_subs(text, i,
-                          ignore_blank=ignore_blank, unignore_blank_parent_tags=unignore_blank_parent_tags,
-                          strip=strip, unstrip_parent_tags=unstrip_parent_tags,
-                          ignore_comment=ignore_comment)
+                          ignore_blank,
+                          unignore_blank_parent_tags,
+                          strip,
+                          unstrip_parent_tags,
+                          ignore_comment)
     for x in _kids:
         if isinstance(x, str):
             if ignore_blank is True and tag not in unignore_blank_parent_tags and x.strip() == "":
@@ -550,7 +553,6 @@ class _Attr:
 
 class _Kids:
     def __init__(self, kids=None):
-        # self.tag = None
         self.kids = kids or []
 
     @property
@@ -562,42 +564,6 @@ class _Kids:
         if not isinstance(value, list):
             raise ValueError
         self._kids = value
-
-    def _kids2str(self,
-                  do_pretty,
-                  begin_indent,
-                  step,
-                  char,
-                  dont_do_tags,
-                  try_self_closing,
-                  ):
-        s = ""
-
-        _indent_text = '\n' + char * (begin_indent + step)
-
-        do_pretty_ultimately = do_pretty is True and self.tag not in dont_do_tags
-
-        for _kid in self._kids:
-            if do_pretty_ultimately:
-                s += _indent_text
-
-            if isinstance(_kid, str):
-                s += _escape_element_string(_kid)
-
-            elif isinstance(_kid, _BaseElement):
-                s += _kid.to_str(do_pretty,
-                                 begin_indent + step,
-                                 step,
-                                 char,
-                                 dont_do_tags,
-                                 try_self_closing
-                                 )
-            elif isinstance(_kid, Comment):
-                s += _kid.to_str()
-            else:
-                raise TypeError("Kid type:{} not supported by to_str().".format(type(_kid)))
-        if do_pretty_ultimately:
-            s += '\n' + char * begin_indent
 
 
 class _BaseElement:
@@ -611,7 +577,7 @@ class QMElement(_BaseElement, _Tag, _Attr):
         _Tag.__init__(self, tag)
         _Attr.__init__(self, attrs)
 
-    def to_str(self):
+    def to_str(self, *args, **kwargs):
         s = "<?" + self.tag
         attrs_str = self._attrs2str()
         if attrs_str:
@@ -697,7 +663,7 @@ class DocType(_BaseElement):
         if hasattr(value, "__iter__"):
             self._quoted_strings = value
 
-    def to_str(self, *_args, **_kwargs):
+    def to_str(self, *args, **kwargs):
         s = "<!DOCTYPE"
         for unquoted_string in self.unquoted_strings:
             s += " {}".format(unquoted_string)
@@ -714,7 +680,7 @@ class Element(_BaseElement, _Tag, _Attr, _Kids):
         _BaseElement.__init__(self)
         _Tag.__init__(self, tag)
         _Attr.__init__(self, attrs)
-        _Kids.__init__(self, kids)
+        self.kids = kids or []
         self.self_closing = True
 
     @property
@@ -754,15 +720,34 @@ class Element(_BaseElement, _Tag, _Attr, _Kids):
 
         s = "<" + self.tag + self._attrs2str()
 
-        if self.kids:
-            s += self._kids2str(do_pretty,
-                                begin_indent,
-                                step,
-                                char,
-                                dont_do_tags,
-                                try_self_closing,
-                                )
+        _indent_text = '\n' + char * (begin_indent + step)
 
+        do_pretty_ultimately = do_pretty is True and self.tag not in dont_do_tags
+
+        for _kid in self._kids:
+            if do_pretty_ultimately:
+                s += _indent_text
+
+            if isinstance(_kid, str):
+                s += _escape_element_string(_kid)
+
+            elif isinstance(_kid, _BaseElement):
+                s += _kid.to_str(do_pretty,
+                                 begin_indent + step,
+                                 step,
+                                 char,
+                                 dont_do_tags,
+                                 try_self_closing
+                                 )
+            elif isinstance(_kid, Comment):
+                s += _kid.to_str()
+            else:
+                raise TypeError("Kid type:{} not supported by to_str().".format(type(_kid)))
+
+        if do_pretty_ultimately:
+            s += '\n' + char * begin_indent
+
+        if self.kids:
             s += '</{}>'.format(self.tag)
 
         else:
@@ -804,13 +789,13 @@ class Xml(_Kids):
     @property
     def root(self):
         for x in self.kids:
-            if isinstance(x, Element) and not isinstance(x, Xml):
+            if isinstance(x, Element):
                 return x
 
     @property
     def prolog(self):
         for x in self.kids:
-            if type(x) is type(Prolog()):
+            if isinstance(x, Prolog):
                 return x
 
     @property
