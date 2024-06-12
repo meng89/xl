@@ -160,9 +160,10 @@ def _parse_prolog_or_qme(text, i):
         i = _ignore_blank(text, i)
 
     i = _ignore_blank(text, i)
-    if text[i] != "?":
-        return False, None
-    i += 1
+    # print(e.attrs)
+    # if text[i] != "?":
+    #    return False, None
+    # i += 1
     i = _ignore_blank(text, i)
     if text[i] != ">":
         return False, None
@@ -302,11 +303,11 @@ def _escape_element_string(text):
 
 
 def _read_text(text, i):
-    t = ""
+    s = ""
     while i < len(text) and text[i] not in "<":
-        t += text[i]
+        s += text[i]
         i += 1
-    return t, i
+    return s, i
 
 
 #  ↑↓←→↖↗↙↘
@@ -439,7 +440,7 @@ def _read_attr(text, i):
     return key, _unescape(string_value, _xml_attr_escape_table), i
 
 
-def _read_subs(text: str, i: int, *args, ignore_comment, **kwargs) -> tuple:
+def _read_subs(text: str, i: int, ignore_comment, *args, **kwargs) -> tuple:
     kids = []
     # while True:
     while i < len(text):
@@ -841,9 +842,10 @@ def parse(text,
           ignore_comment: bool = False) -> Xml:
     xml = Xml()
     kids, i = _read_subs(text, 0,
+                         ignore_comment,
                          ignore_blank, unignore_blank_parent_tags,
                          strip, unstrip_parent_tags,
-                         ignore_comment=ignore_comment)
+                         )
 
     for kid in kids:
         # if not isinstance(kid, str):
