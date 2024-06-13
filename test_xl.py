@@ -34,6 +34,7 @@ def get_xml2():
     html = xl.Element("html", {"xmlns": "http://www.w3.org/1999/xhtml", "xml:lang": "en", "lang": "en"})
     head = xl.sub(html, "head", kids=[xl.Element("title", kids=["Virtual Library"])])
     _sf = xl.sub(head, "sf")
+    _sf.self_closing = False
     body = xl.sub(html, "body")
     p = xl.sub(body, "p")
     p.kids.append("Moved to ")
@@ -51,15 +52,15 @@ def get_xml2():
 
 class MyTestCase(unittest.TestCase):
     def test_something(self):
-        xml1 = xl.parse(_xml1_text, strip=True, unstrip_parent_tags=["p"])
+        xml1 = xl.parse(_xml1_text, ignore_blank=True, strip=True, unstrip_parent_tags=["p"], ignore_comment=True)
         xml2 = get_xml2()
         print()
         print("########/BEGING")
         print("########/xml1:")
-        xml1_str = xml1.to_str(do_pretty=True, dont_do_tags=["p"])
+        xml1_str = xml1.to_str(do_pretty=True, dont_do_tags=["p", "title"])
         print(xml1_str)
         print("########/xml2:")
-        xml2_str = xml2.to_str(do_pretty=True, dont_do_tags=["p"])
+        xml2_str = xml2.to_str(new_line_after_kid=True, do_pretty=True, dont_do_tags=["p", "title"])
         print(xml2_str)
         print("########/END")
         self.maxDiff = None
@@ -70,7 +71,7 @@ xml3_text = """ <a class="class1" id="id1">text<c/></a> """
 
 
 class MyTestCase2(unittest.TestCase):
-    def test_something(self):
+    def test_something2(self):
         xml3 = xl.parse(xml3_text, strip=True)
         root2 = xl.parse_e(xml3_text)
         xml4 = xl.Xml(root=root2)
@@ -98,7 +99,7 @@ class MytestCase3(unittest.TestCase):
 
 
 if __name__ == '__main__':
-    xml1 = xl.parse(_xml1_text, strip=True, unstrip_parent_tags=["p"])
-    print(xml1.kids)
-    # unittest.main()
+    # xml1 = xl.parse(_xml1_text, strip=True, unstrip_parent_tags=["p"])
+    # print(xml1.kids)
+    unittest.main()
 

@@ -18,10 +18,12 @@ _xml_escape_table = (
     ('>', '&gt;'),
 )
 
-_xml_attr_escape_table = _xml_escape_table + (
+_xml_quot_escape_tabe = (
     ('"', '&quot;'),
     ("'", "&apos;"),
 )
+
+_xml_attr_escape_table = _xml_escape_table + _xml_quot_escape_tabe
 
 _xml_comment_escape_table = (
     ("-", "&#45;"),
@@ -171,21 +173,8 @@ def _parse_prolog_or_qme(text, i):
     return True, (e, i)
 
 
-def _read_unquoted_string(text, i):
-    x = _read_till_strings(text, i, (" ", ">"))
-    return x
-
-
-def _read_quoted_string(text, i):
-    mark = text[i]
-    i += 1
-    s, i, end = _read_till_strings(text, i, (mark,))
-    i += 1
-    return s, i, end
-
-
 def _escape_quoted_string(s):
-    return _escape(s, _all_escape_table)
+    return _escape(s, _xml_quot_escape_tabe)
 
 
 def _escape_unquoted_string(s):
@@ -219,29 +208,39 @@ def _parse_doctype(text, i):
     if text[i:i + 10].lower() != "<!DOCTYPE ".lower():
         return False, None
 
-    e = DocType()
+    e = DocType(default_html5=False)
 
     i += 10
     i = _ignore_blank(text, i)
 
     while i < len(text):
         if text[i] == ">":
+            i += 1
             return True, (e, i)
 
         elif text[i] in ('"', "'"):
             s, i, end = _read_quoted_string(text, i)
             e.quoted_strings.append(_escape_quoted_string(s))
-            print("quoted:{}, end:{}, text[i]:{}".format(s, repr(end), repr(text[i])))
 
         else:
             s, i, end = _read_unquoted_string(text, i)
             e.unquoted_strings.append(_escape_unquoted_string(s))
-            print("quoted:{}, end:{}, text[i]:{}".format(s, repr(end), repr(text[i])))
 
         i = _ignore_blank(text, i)
 
-    print("heresf")
     raise ParseError
+
+
+def _read_unquoted_string(text, i):
+    x = _read_till_strings(text, i, (" ", ">"))
+    return x
+
+
+def _read_quoted_string(text, i):
+    mark = text[i]
+    i += 1
+    s, i, end = _read_till_strings(text, i, (mark,))
+    return s, i, end
 
 
 _blank = (" ", "\t", "\n", "\r")
@@ -444,13 +443,19 @@ def _read_attr(text, i):
     return key, _unescape(string_value, _xml_attr_escape_table), i
 
 
-def _read_subs(text: str, i: int, ignore_comment, *args, **kwargs) -> tuple:
+def _read_subs(text, i,
+               ignore_blank, unignore_blank_parent_tags,
+               strip, unstrip_parent_tags,
+               ignore_comment) -> tuple:
     kids = []
     # while True:
     while i < len(text):
         for fun in (_parse_prolog_or_qme, _parse_doctype, _parse_comment, _parse_element, _parse_string):
             if fun is _parse_element:
-                is_success, result = fun(text, i, *args, ignore_comment=ignore_comment, **kwargs)
+                is_success, result = fun(text, i,
+                                         ignore_blank, unignore_blank_parent_tags,
+                                         strip, unstrip_parent_tags,
+                                         ignore_comment)
             else:
                 is_success, result = fun(text, i)
 
@@ -586,7 +591,7 @@ class QMElement(_BaseElement, _Tag, _Attr):
         s = "<?" + self.tag
         attrs_str = self._attrs2str()
         if attrs_str:
-            s += " "
+            # s += " "
             s += self._attrs2str()
         s += "?>"
 
@@ -637,7 +642,7 @@ class Comment(_BaseElement):
     def __init__(self, text):
         self.text = text
 
-    def to_str(self):
+    def to_str(self, *args, **kwargs):
         return "<!--{}-->".format(_escape_comment(self.text))
 
 
@@ -725,31 +730,30 @@ class Element(_BaseElement, _Tag, _Attr, _Kids):
 
         s = "<" + self.tag + self._attrs2str()
 
-        _indent_text = '\n' + char * (begin_indent + step)
+        if self._kids:
+            s += '>'
 
-        do_pretty_ultimately = do_pretty is True and self.tag not in dont_do_tags
+            _indent_text = '\n' + char * (begin_indent + step)
+            do_pretty_ultimately = do_pretty is True and self.tag not in dont_do_tags
 
-        for _kid in self._kids:
-            if do_pretty_ultimately:
-                s += _indent_text
+            for _kid in self._kids:
+                if do_pretty_ultimately:
+                    s += _indent_text
 
-            if isinstance(_kid, str):
-                s += _escape_element_string(_kid)
+                if isinstance(_kid, str):
+                    s += _escape_element_string(_kid)
 
-            elif isinstance(_kid, _BaseElement):
-                s += _kid.to_str(do_pretty,
-                                 begin_indent + step,
-                                 step,
-                                 char,
-                                 dont_do_tags,
-                                 try_self_closing
-                                 )
-            elif isinstance(_kid, Comment):
-                s += _kid.to_str()
-            else:
-                raise TypeError("Kid type:{} not supported by to_str().".format(type(_kid)))
+                elif isinstance(_kid, _BaseElement):
+                    s += _kid.to_str(do_pretty_ultimately,
+                                     begin_indent + step,
+                                     step,
+                                     char,
+                                     dont_do_tags,
+                                     try_self_closing
+                                     )
+                else:
+                    raise TypeError("Kid type:{} not supported.".format(type(_kid)))
 
-        if self.kids:
             if do_pretty_ultimately:
                 s += '\n' + char * begin_indent
             s += '</{}>'.format(self.tag)
@@ -791,19 +795,19 @@ class Xml(_Kids):
             self.kids = kids
 
     @property
-    def root(self):
+    def root(self) -> Element or None:
         for x in self.kids:
             if isinstance(x, Element):
                 return x
 
     @property
-    def prolog(self):
+    def prolog(self) -> Prolog or None:
         for x in self.kids:
             if isinstance(x, Prolog):
                 return x
 
     @property
-    def doctype(self):
+    def doctype(self) -> DocType or None:
         for x in self.kids:
             if type(x) is type(DocType()):
                 return x
@@ -845,9 +849,9 @@ def parse(text,
           ignore_comment: bool = False) -> Xml:
     xml = Xml()
     kids, i = _read_subs(text, 0,
-                         ignore_comment,
                          ignore_blank, unignore_blank_parent_tags,
                          strip, unstrip_parent_tags,
+                         ignore_comment
                          )
 
     for kid in kids:
