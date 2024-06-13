@@ -62,6 +62,7 @@ class MyTestCase(unittest.TestCase):
         xml2_str = xml2.to_str(do_pretty=True, dont_do_tags=["p"])
         print(xml2_str)
         print("########/END")
+        self.maxDiff = None
         self.assertEqual(xml1_str, xml2_str)
 
 
@@ -80,6 +81,7 @@ class MyTestCase2(unittest.TestCase):
         print("########/xml4:")
         print(xml4.to_str(try_self_closing=False))
         print("########/END")
+        self.maxDiff = None
         self.assertEqual(xml3.to_str(try_self_closing=False), xml4.to_str(try_self_closing=False))
 
 
@@ -91,9 +93,12 @@ class MytestCase3(unittest.TestCase):
                 print(repr(x.tag))
 
         print("here", xml3.prolog, xml3.root, xml3.doctype)
-
+        self.maxDiff = None
         self.assertEqual(len(xml3.root.find_kids("c")), 1)
 
 
 if __name__ == '__main__':
-    unittest.main()
+    xml1 = xl.parse(_xml1_text, strip=True, unstrip_parent_tags=["p"])
+    print(xml1.kids)
+    # unittest.main()
+

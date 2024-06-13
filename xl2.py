@@ -15,16 +15,16 @@ _xml_escape_table = (
     ('<', '&lt;'),
     # 大于好可能无需转义
     # https://stackoverflow.com/questions/76342593/xmlmapper-not-escaping-the-greater-than-character-but-does-escape-the-rest
-    ('>', '&gt;')
+    ('>', '&gt;'),
 )
 
 _xml_attr_escape_table = _xml_escape_table + (
     ('"', '&quot;'),
-    ("'", "&apos;")
+    ("'", "&apos;"),
 )
 
 _xml_comment_escape_table = (
-    ("-", "&#45;")
+    ("-", "&#45;"),
 )
 
 _all_escape_table = _xml_escape_table + _xml_attr_escape_table + _xml_comment_escape_table
@@ -172,27 +172,28 @@ def _parse_prolog_or_qme(text, i):
 
 
 def _read_unquoted_string(text, i):
-    return _read_till_strings(text, i, (" ", ">"))
+    x = _read_till_strings(text, i, (" ", ">"))
+    return x
 
 
 def _read_quoted_string(text, i):
     mark = text[i]
     i += 1
-    s, i, end = _read_till_strings(text, i, (mark, ))
+    s, i, end = _read_till_strings(text, i, (mark,))
     i += 1
     return s, i, end
 
 
-def _escape_unquoted_string(s):
-    _escape(s, _all_escape_table)
-
-
 def _escape_quoted_string(s):
-    _escape(s, _all_escape_table)
+    return _escape(s, _all_escape_table)
+
+
+def _escape_unquoted_string(s):
+    return _escape(s, _all_escape_table)
 
 
 def _escape_all(s):
-    _escape(s, _all_escape_table)
+    return _escape(s, _all_escape_table)
 
 
 def _read_till_strings(text, i, strings):
@@ -215,7 +216,7 @@ def _read_till_strings(text, i, strings):
 
 
 def _parse_doctype(text, i):
-    if text[i:i + 10] != "<!DOCTYPE ":
+    if text[i:i + 10].lower() != "<!DOCTYPE ".lower():
         return False, None
 
     e = DocType()
@@ -230,14 +231,17 @@ def _parse_doctype(text, i):
         elif text[i] in ('"', "'"):
             s, i, end = _read_quoted_string(text, i)
             e.quoted_strings.append(_escape_quoted_string(s))
+            print("quoted:{}, end:{}, text[i]:{}".format(s, repr(end), repr(text[i])))
 
         else:
             s, i, end = _read_unquoted_string(text, i)
             e.unquoted_strings.append(_escape_unquoted_string(s))
+            print("quoted:{}, end:{}, text[i]:{}".format(s, repr(end), repr(text[i])))
 
         i = _ignore_blank(text, i)
 
-    return False, None
+    print("heresf")
+    raise ParseError
 
 
 _blank = (" ", "\t", "\n", "\r")
@@ -745,10 +749,9 @@ class Element(_BaseElement, _Tag, _Attr, _Kids):
             else:
                 raise TypeError("Kid type:{} not supported by to_str().".format(type(_kid)))
 
-        if do_pretty_ultimately:
-            s += '\n' + char * begin_indent
-
         if self.kids:
+            if do_pretty_ultimately:
+                s += '\n' + char * begin_indent
             s += '</{}>'.format(self.tag)
 
         else:
