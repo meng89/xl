@@ -1,14 +1,15 @@
 # The MIT License
-
+# Chen Meng observerchan@gmail.com
 # https://github.com/meng89/xl
 
 """ XML without mire! / 无坑 XML ！"""
 
 import abc
+from typing import Self
+
 
 __version__ = "1.0.0"
 
-from abc import abstractmethod as _abstractmethod
 
 _xml_escape_table = (
     ('&', '&amp;'),  # I guess this must be the first one?
@@ -85,20 +86,6 @@ def _is_have_string_kid(kids):
     return False
 
 
-class ToStrError(Exception):
-    pass
-
-
-class _Node(object):
-    @_abstractmethod
-    def to_str(self):
-        pass
-
-
-class InitError(Exception):
-    pass
-
-
 def _escape_comment(text):
     # todo more research
     return text
@@ -112,54 +99,6 @@ def skid(element, tag, attrs=None, kids=None):
 
 def sub(*args, **kwargs):
     return skid(*args, **kwargs)
-
-
-def _parse_prolog_or_qme(text, i):
-    if text[i] != "<":
-        return False, None
-    i += 1
-    i = _ignore_blank(text, i)
-    if text[i] != "?":
-        return False, None
-    i += 1
-    i = _ignore_blank(text, i)
-
-    ###
-    tag, i, end = _read_till_strings(text, i, (" ", "?"))
-    ###
-
-    if tag == "xml":
-        e = Prolog()
-    else:
-        e = QMElement(tag)
-
-    if end == "?":
-        i = _ignore_blank(text, i)
-        if text[i] == ">":
-            i += 1
-            return True, (text, i)
-        else:
-            return False, None
-
-    while i < len(text):
-        if text[i] == "?":
-            i += 1
-            break
-
-        key, value, i = _read_attr(text, i)
-        e.attrs[key.lower()] = value
-        i = _ignore_blank(text, i)
-
-    i = _ignore_blank(text, i)
-    # print(e.attrs)
-    # if text[i] != "?":
-    #    return False, None
-    # i += 1
-    i = _ignore_blank(text, i)
-    if text[i] != ">":
-        return False, None
-    i += 1
-    return True, (e, i)
 
 
 def _escape_quoted_string(s):
@@ -302,6 +241,54 @@ def _read_text(text, i):
     return s, i
 
 
+def _parse_prolog_or_qme(text, i):
+    if text[i] != "<":
+        return False, None
+    i += 1
+    i = _ignore_blank(text, i)
+    if text[i] != "?":
+        return False, None
+    i += 1
+    i = _ignore_blank(text, i)
+
+    ###
+    tag, i, end = _read_till_strings(text, i, (" ", "?"))
+    ###
+
+    if tag == "xml":
+        e = Prolog()
+    else:
+        e = QMElement(tag)
+
+    if end == "?":
+        i = _ignore_blank(text, i)
+        if text[i] == ">":
+            i += 1
+            return True, (text, i)
+        else:
+            return False, None
+
+    while i < len(text):
+        if text[i] == "?":
+            i += 1
+            break
+
+        key, value, i = _read_attr(text, i)
+        e.attrs[key.lower()] = value
+        i = _ignore_blank(text, i)
+
+    i = _ignore_blank(text, i)
+    # print(e.attrs)
+    # if text[i] != "?":
+    #    return False, None
+    # i += 1
+    i = _ignore_blank(text, i)
+    if text[i] != ">":
+        return False, None
+    i += 1
+    return True, (e, i)
+
+
 #  ↑↓←→↖↗↙↘
 # def _parse_element(text, i, do_strip=False, dont_do_tags=None, ignore_comment=False):
 def _parse_element(text, i,
@@ -369,15 +356,9 @@ def _parse_element(text, i,
     _kids, i = _read_subs(text, i,
                           ignore_blank, unignore_blank_parent_tags,
                           strip, unstrip_parent_tags,
-                          ignore_comment)
-    for x in _kids:
-        if isinstance(x, str):
-            if ignore_blank is True and tag not in unignore_blank_parent_tags and x.strip() == "":
-                x = x.strip()
-            if strip is True and tag not in unstrip_parent_tags:
-                x = x.strip()
-        if x:
-            e.kids.append(x)
+                          ignore_comment,
+                          tag)
+    e.kids = _kids
 
     # </a>
     # kids 读完了，该读取结尾了，结尾必然是这种格式：</a>
@@ -401,8 +382,6 @@ def _parse_element(text, i,
     i += 1
     e.self_closing = False
     return True, (e, i)
-
-    #######
 
 
 def _parse_comment(text, i):
@@ -430,44 +409,6 @@ def _read_attr(text, i):
     return key, _unescape(string_value, _xml_attr_escape_table), i
 
 
-def _read_subs(text, i,
-               ignore_blank, unignore_blank_parent_tags,
-               strip, unstrip_parent_tags,
-               ignore_comment,
-               tag) -> tuple:
-    kids = []
-    # while True:
-    while i < len(text):
-        for fun in (_parse_prolog_or_qme, _parse_doctype, _parse_comment, _parse_element, _parse_string):
-            if fun is _parse_element:
-                is_success, result = fun(text, i,
-                                         ignore_blank, unignore_blank_parent_tags,
-                                         strip, unstrip_parent_tags,
-                                         ignore_comment,
-                                         )
-            else:
-                is_success, result = fun(text, i)
-
-            if is_success:
-                term, i = result
-                if ignore_comment and (type(term) is type(Comment(""))):
-                    pass
-                elif ignore_blank is True and isinstance(term, str) and term.strip() == "":
-                    pass
-                elif term == "":
-                    pass
-                else:
-                    kids.append(term)
-                break
-
-        if is_success:
-            continue
-        else:
-            break
-    # print(kids)
-    return kids, i
-
-
 def _read_till(text, bi, stoptext):
     s = ""
     while bi < len(text):
@@ -488,6 +429,47 @@ def _read_till2(text, i, stop_s):
             s += text[i]
 
     return s, len(s)
+
+
+def _read_subs(text, i,
+               ignore_blank, unignore_blank_parent_tags,
+               strip, unstrip_parent_tags,
+               ignore_comment,
+               tag) -> tuple:
+    kids = []
+    # while True:
+    while i < len(text):
+        for fun in (_parse_prolog_or_qme, _parse_doctype, _parse_comment, _parse_element, _parse_string):
+            if fun is _parse_element:
+                is_success, result = fun(text, i,
+                                         ignore_blank, unignore_blank_parent_tags,
+                                         strip, unstrip_parent_tags,
+                                         ignore_comment,
+                                         )
+            else:
+                is_success, result = fun(text, i)
+
+            if is_success:
+                term, i = result
+                if isinstance(term, str):
+                    if ignore_blank is True and tag not in unignore_blank_parent_tags and term.strip() == "":
+                        term = term.strip()
+                    if strip is True and tag not in unstrip_parent_tags:
+                        term = term.strip()
+                    if term:
+                        kids.append(term)
+                elif isinstance(term, Comment) and ignore_comment:
+                    pass
+                else:
+                    kids.append(term)
+                break
+
+        if is_success:
+            continue
+        else:
+            break
+    # print(kids)
+    return kids, i
 
 
 class ParseError(Exception):
@@ -685,6 +667,14 @@ class Element(_BaseElement, _Tag, _Attr, _Kids):
             raise Exception
         self._self_closing = value
 
+    def ekid(self, *args, **kwargs) -> Self:
+        e = Element(*args, **kwargs)
+        self.kids.append(e)
+        return e
+
+    def skid(self, string: str) -> None:
+        self.kids.append(string)
+
     def find_kids(self, tag):
         kids = []
         for _kid in self.kids:
@@ -829,6 +819,8 @@ def parse(text,
           ignore_blank: bool = False, unignore_blank_parent_tags: list = None,
           strip: bool = False, unstrip_parent_tags: list = None,
           ignore_comment: bool = False) -> Xml:
+    unignore_blank_parent_tags = unignore_blank_parent_tags or []
+    unstrip_parent_tags = unstrip_parent_tags or []
     xml = Xml()
     kids, i = _read_subs(text, 0,
                          ignore_blank, unignore_blank_parent_tags,
