@@ -57,7 +57,7 @@ class MyTestCase(unittest.TestCase):
         print()
         print("########/BEGING")
         print("########/xml1:")
-        xml1_str = xml1.to_str(do_pretty=True, dont_do_tags=["p", "title"])
+        xml1_str = xml1.to_str(new_line_after_kid=True, do_pretty=True, dont_do_tags=["p", "title"])
         print(xml1_str)
         print("########/xml2:")
         xml2_str = xml2.to_str(new_line_after_kid=True, do_pretty=True, dont_do_tags=["p", "title"])
@@ -72,7 +72,7 @@ xml3_text = """ <a class="class1" id="id1">text<c/></a> """
 
 class MyTestCase2(unittest.TestCase):
     def test_something2(self):
-        xml3 = xl.parse(xml3_text, strip=True)
+        xml3 = xl.parse(xml3_text, ignore_blank=True)
         root2 = xl.parse_e(xml3_text)
         xml4 = xl.Xml(root=root2)
         print()
@@ -89,13 +89,8 @@ class MyTestCase2(unittest.TestCase):
 class MytestCase3(unittest.TestCase):
     def test_api(self):
         xml3 = xl.parse(xml3_text, strip=True)
-        for x in xml3.root.kids:
-            if isinstance(x, xl.Element):
-                print(repr(x.tag))
-
-        print("here", xml3.prolog, xml3.root, xml3.doctype)
         self.maxDiff = None
-        self.assertEqual(len(xml3.root.find_kids("c")), 1)
+        self.assertEqual(len(xml3.root.find_descendants("c")), 1)
 
 
 if __name__ == '__main__':

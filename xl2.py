@@ -6,7 +6,7 @@
 
 import abc
 
-__version__ = "0.4.0"
+__version__ = "1.0.0"
 
 from abc import abstractmethod as _abstractmethod
 
@@ -112,17 +112,6 @@ def skid(element, tag, attrs=None, kids=None):
 
 def sub(*args, **kwargs):
     return skid(*args, **kwargs)
-
-
-def _read_mark(text, i):
-    if text[i] != "<":
-        return False, None
-    i += 1
-    i = _ignore_blank(text, i)
-    if text[i] != "?":
-        return False, None
-    i += 1
-    i = _ignore_blank(text, i)
 
 
 def _parse_prolog_or_qme(text, i):
@@ -320,7 +309,8 @@ def _parse_element(text, i,
                    unignore_blank_parent_tags: list = None,
                    strip: bool = False,
                    unstrip_parent_tags: list = None,
-                   ignore_comment: bool = False):
+                   ignore_comment: bool = False,
+                   ):
     unignore_blank_parent_tags = unignore_blank_parent_tags or []
     unstrip_parent_tags = unstrip_parent_tags or []
 
@@ -377,10 +367,8 @@ def _parse_element(text, i,
     #######
 
     _kids, i = _read_subs(text, i,
-                          ignore_blank,
-                          unignore_blank_parent_tags,
-                          strip,
-                          unstrip_parent_tags,
+                          ignore_blank, unignore_blank_parent_tags,
+                          strip, unstrip_parent_tags,
                           ignore_comment)
     for x in _kids:
         if isinstance(x, str):
@@ -388,7 +376,6 @@ def _parse_element(text, i,
                 x = x.strip()
             if strip is True and tag not in unstrip_parent_tags:
                 x = x.strip()
-
         if x:
             e.kids.append(x)
 
@@ -446,7 +433,8 @@ def _read_attr(text, i):
 def _read_subs(text, i,
                ignore_blank, unignore_blank_parent_tags,
                strip, unstrip_parent_tags,
-               ignore_comment) -> tuple:
+               ignore_comment,
+               tag) -> tuple:
     kids = []
     # while True:
     while i < len(text):
@@ -455,13 +443,16 @@ def _read_subs(text, i,
                 is_success, result = fun(text, i,
                                          ignore_blank, unignore_blank_parent_tags,
                                          strip, unstrip_parent_tags,
-                                         ignore_comment)
+                                         ignore_comment,
+                                         )
             else:
                 is_success, result = fun(text, i)
 
             if is_success:
                 term, i = result
                 if ignore_comment and (type(term) is type(Comment(""))):
+                    pass
+                elif ignore_blank is True and isinstance(term, str) and term.strip() == "":
                     pass
                 elif term == "":
                     pass
@@ -475,15 +466,6 @@ def _read_subs(text, i,
             break
     # print(kids)
     return kids, i
-
-
-def parse_e(text, *args, **kwargs):
-    i = _ignore_blank(text, 0)
-    is_success, (root, i) = _parse_element(text, i, *args, **kwargs)
-    i = _ignore_blank(text, i)
-    if len(text) != i:
-        raise ParseError("Some text could not parse: {}".format(repr(text[i:])))
-    return root
 
 
 def _read_till(text, bi, stoptext):
@@ -851,7 +833,8 @@ def parse(text,
     kids, i = _read_subs(text, 0,
                          ignore_blank, unignore_blank_parent_tags,
                          strip, unstrip_parent_tags,
-                         ignore_comment
+                         ignore_comment,
+                         None
                          )
 
     for kid in kids:
@@ -859,3 +842,8 @@ def parse(text,
         xml.kids.append(kid)
 
     return xml
+
+
+def parse_e(text, *args, **kwargs):
+    xml = parse(text, *args, **kwargs)
+    return xml.root
