@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import xl2 as xl
+import xl as xl
 
 
 xmlfile = "/mnt/data/projects/xml-p5a/T/T01/T01n0001.xml"

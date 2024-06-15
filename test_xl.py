@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 import unittest
-import xl2 as xl
+import xl as xl
 
 
 _xml1_text = \
