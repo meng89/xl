@@ -167,7 +167,8 @@ def _read_unquoted_string(text, i):
 def _read_quoted_string(text, i):
     mark = text[i]
     i += 1
-    s, i, end = _read_till_strings(text, i, (mark,))
+    s, i, end = _read_till_strings(text, i, (mark, ))
+    i += 1
     return s, i, end
 
 
@@ -254,6 +255,8 @@ def _parse_prolog_or_qme(text, i):
     ###
     tag, i, end = _read_till_strings(text, i, (" ", "?"))
     ###
+    i += 1
+    i = _ignore_blank(text, i)
 
     if tag == "xml":
         e = Prolog()
@@ -339,7 +342,6 @@ def _parse_element(text, i,
         if text[i] != ">":
             return False, None
         i += 1
-        i = _ignore_blank(text, i)
         e.self_closing = True
         return True, (e, i)
     # >
@@ -388,8 +390,8 @@ def _parse_comment(text, i):
     if text[i:i + 4] != "<!--":
         return False, None
     i += 4
-
     comment_text, i = _read_till(text, i, "-->")
+    i += 3
     comment_text2 = Comment(_unescape_comment(comment_text))
     return True, (comment_text2, i)
 
@@ -401,34 +403,22 @@ def _unescape_comment(text):
 
 def _read_attr(text, i):
     key, i = _read_till(text, i, "=")
+    i += 1
     key = key.strip()
     i = _ignore_blank(text, i)
     qmark = text[i]
     i += 1
     string_value, i = _read_till(text, i, qmark)
+    i += 1
     return key, _unescape(string_value, _xml_attr_escape_table), i
 
 
-def _read_till(text, bi, stoptext):
-    s = ""
-    while bi < len(text):
-        if text[bi:bi + len(stoptext)] == stoptext:
-            return s, bi + len(stoptext)
-        else:
-            s += text[bi]
-            bi += 1
-    return s, bi
-
-
-def _read_till2(text, i, stop_s):
-    s = ""
-    while i < len(text):
-        if text[i:].startswith(stop_s):
-            break
-        else:
-            s += text[i]
-
-    return s, len(s)
+def _read_till(text: str, i: int, stop_s: str):
+    index = text.find(stop_s, i)
+    if index > -1:
+        return text[i:index], index
+    else:
+        return text[i:], len(text)
 
 
 def _read_subs(text, i,
@@ -699,6 +689,7 @@ class Element(_BaseElement, _Tag, _Attr, _Kids):
                dont_do_tags: list[str] = None,
                try_self_closing: bool = None,
                ) -> str:
+        dont_do_tags = dont_do_tags or []
 
         s = "<" + self.tag + self._attrs2str()
 
@@ -785,7 +776,7 @@ class Xml(_Kids):
                 return x
 
     def to_str(self,
-               new_line_after_kid: bool = False,
+               new_line_after_kid: bool = None,
                do_pretty: bool = False,
                begin_indent: int = 0,
                step: int = 4,
@@ -793,25 +784,29 @@ class Xml(_Kids):
                dont_do_tags: list[str] = None,
                try_self_closing: bool = None,
                ) -> str:
-
+        if do_pretty is True and new_line_after_kid is None:
+            new_line_after_kid = True
         s = ""
+        ss = []
         for kid in self.kids:
             if isinstance(kid, _BaseElement):
-                s += kid.to_str(do_pretty,
-                                begin_indent,
-                                step,
-                                char,
-                                dont_do_tags,
-                                try_self_closing,
-                                )
+                x = kid.to_str(do_pretty,
+                               begin_indent,
+                               step,
+                               char,
+                               dont_do_tags,
+                               try_self_closing,
+                               )
+                ss.append(x)
             elif isinstance(kid, str):
-                s += kid
+                ss.append(kid)
             else:
                 raise Exception("How???")
-
-            if new_line_after_kid:
-                s += "\n"
-
+        if new_line_after_kid is True:
+            s += "\n".join(ss)
+            s += "\n"
+        else:
+            s += "".join(ss)
         return s
 
 

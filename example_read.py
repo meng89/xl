@@ -2,10 +2,16 @@
 
 import xl
 
-xml_string = """<!DOCTYPE html>
-<html><body><p>Hello World!</p></body></html>"""
+xml_string = """
+<!DOCTYPE html>
+<html>
+    <body>
+        <p>Hello World!</p>
+    </body>
+</html>
+"""
 
-xml = xl.parse(xml_string)
+xml = xl.parse(xml_string, ignore_blank=True)
 html = xml.root
 body = html.kids[0]
 p = body.kids[0]

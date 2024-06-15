@@ -2,12 +2,11 @@
 
 import xl
 
-doctype = xl.DocType("html")
+doctype = xl.DocType()
 html = xl.Element("html")
 body = xl.sub(html, "body")
-p = xl.sub(body, "p")
-p.kids.append("Hello World!")
+p = body.ekid("p")
+p.skid("Hello World!")
 
 xml = xl.Xml(doctype=doctype, root=html)
-print(xml.to_str())
-
+print(xml.to_str(do_pretty=True, dont_do_tags=["p"]))
