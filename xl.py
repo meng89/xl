@@ -11,7 +11,7 @@ from typing import Self
 __version__ = "1.0.0"
 
 
-_xml_escape_table = (
+_escape_table_string_kid = (
     ('&', '&amp;'),  # I guess this must be the first one?
     ('<', '&lt;'),
     # 大于好可能无需转义
@@ -19,50 +19,51 @@ _xml_escape_table = (
     ('>', '&gt;'),
 )
 
-_xml_quot_escape_tabe = (
-    ('"', '&quot;'),
-    ("'", "&apos;"),
-)
+_escape_table_single_quote = (("'", "&apos;"),)
+_escape_table_double_quote = (('"', '&quot;'),)
 
-_xml_attr_escape_table = _xml_escape_table + _xml_quot_escape_tabe
+_escape_table_quote = _escape_table_double_quote + _escape_table_double_quote
 
-_xml_comment_escape_table = (
-    ("-", "&#45;"),
-)
+_xml_attr_escape_table = _escape_table_string_kid + _escape_table_quote
 
-_all_escape_table = _xml_escape_table + _xml_attr_escape_table + _xml_comment_escape_table
+
+_escape_table_all = _escape_table_string_kid + _xml_attr_escape_table
+
+
+def _unescape_all(text):
+    return _unescape(text, _escape_table_all)
 
 
 def _unescape(text, table):
     _text = text
-    nt = ""
+    new_text = ""
     i = 0
     while i < len(text):
         unescaped = False
         for x, y in table:
             if text[i: i + len(y)] == y:
-                nt += x
+                new_text += x
                 i += len(y)
                 unescaped = True
                 break
         if not unescaped:
-            nt += text[i]
+            new_text += text[i]
             i += 1
-    return nt
+    return new_text
 
 
 def _escape(text, table):
-    nt = ""
+    new_text = ""
     for c in text:
         escaped = False
         for x, y in table:
             if c == x:
-                nt += y
+                new_text += y
                 escaped = True
                 break
         if not escaped:
-            nt += c
-    return nt
+            new_text += c
+    return new_text
 
 
 def _is_straight_line(element):
@@ -91,26 +92,16 @@ def _escape_comment(text):
     return text
 
 
-def skid(element, tag, attrs=None, kids=None):
-    sub_element = Element(tag, attrs, kids)
-    element.kids.append(sub_element)
-    return sub_element
-
-
-def sub(*args, **kwargs):
-    return skid(*args, **kwargs)
-
-
 def _escape_quoted_string(s):
-    return _escape(s, _xml_quot_escape_tabe)
+    return _escape(s, _escape_table_quote)
 
 
 def _escape_unquoted_string(s):
-    return _escape(s, _all_escape_table)
+    return _escape(s, _escape_table_all)
 
 
 def _escape_all(s):
-    return _escape(s, _all_escape_table)
+    return _escape(s, _escape_table_all)
 
 
 def _read_till_strings(text, i, strings):
@@ -292,6 +283,18 @@ def _parse_prolog_or_qme(text, i):
     return True, (e, i)
 
 
+def _parse_cdata(text, i):
+    if text[i:i + 9].lower() != "<![CDATA[".lower():
+        return False, None
+
+    i += 9
+
+    s, i = _read_till(text, i, "]]>")
+    i += 3
+    cdata = Cdata(s)
+    return True, (cdata, i)
+
+
 #  ↑↓←→↖↗↙↘
 # def _parse_element(text, i, do_strip=False, dont_do_tags=None, ignore_comment=False):
 def _parse_element(text, i,
@@ -429,7 +432,7 @@ def _read_subs(text, i,
     kids = []
     # while True:
     while i < len(text):
-        for fun in (_parse_prolog_or_qme, _parse_doctype, _parse_comment, _parse_element, _parse_string):
+        for fun in (_parse_cdata, _parse_prolog_or_qme, _parse_doctype, _parse_comment, _parse_element, _parse_string):
             if fun is _parse_element:
                 is_success, result = fun(text, i,
                                          ignore_blank, unignore_blank_parent_tags,
@@ -593,11 +596,12 @@ class Prolog(QMElement):
 
 
 class Comment(_BaseElement):
-    def __init__(self, text):
+    def __init__(self, text: str):
         self.text = text
 
     def to_str(self, *args, **kwargs):
-        return "<!--{}-->".format(_escape_comment(self.text))
+        text = self.text.replace("-->", "--&gt;")
+        return "<!--{}-->".format(text)
 
 
 # html thing, not xml thing
@@ -637,6 +641,25 @@ class DocType(_BaseElement):
 
         s += ">"
         return s
+
+
+class Cdata(_BaseElement):
+    def __init__(self, text: str = None):
+        self.text = text or ""
+
+    @property
+    def text(self):
+        return self._text
+
+    @text.setter
+    def text(self, value: str):
+        if "]]>" not in value:
+            self._text = value
+        else:
+            raise ValueError
+
+    def to_str(self, *args, **kwargs):
+        return "<![CDATA[{}]]>".format(self.text)
 
 
 class Element(_BaseElement, _Tag, _Attr, _Kids):

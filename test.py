@@ -8,3 +8,8 @@ s = """
 </root>
 """
 print(xl.parse(s).to_str())
+
+
+def x(text: str):
+    while True:
+        new_text = text.replace("-->", "--&gt;")

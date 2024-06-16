@@ -4,7 +4,7 @@ import xl
 
 doctype = xl.DocType()
 html = xl.Element("html")
-body = xl.sub(html, "body")
+body = html.ekid("body")
 p = body.ekid("p")
 p.skid("Hello World!")
 

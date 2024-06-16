@@ -15,7 +15,7 @@ _xml1_text = \
         <sf></sf>
     </head>
     <body>
-        <p>Moved to <a href="http://example.org/">example.org</a>.<!--这是xml注释--></p>
+        <p><![CDATA[<abcdefg>]]>Moved to <a href="http://example.org/">example.org</a>.<!--这是xml注释--></p>
         
            <span/>
     </body>
@@ -32,17 +32,18 @@ def get_xml2():
                                          "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"])
 
     html = xl.Element("html", {"xmlns": "http://www.w3.org/1999/xhtml", "xml:lang": "en", "lang": "en"})
-    head = xl.sub(html, "head", kids=[xl.Element("title", kids=["Virtual Library"])])
-    _sf = xl.sub(head, "sf")
+    head = html.ekid("head", kids=[xl.Element("title", kids=["Virtual Library"])])
+    _sf = head.ekid("sf")
     _sf.self_closing = False
-    body = xl.sub(html, "body")
-    p = xl.sub(body, "p")
+    body = html.ekid("body")
+    p = body.ekid("p")
+    p.kids.append(xl.Cdata("<abcdefg>"))
     p.kids.append("Moved to ")
-    a = xl.sub(p, "a", attrs={"href": "http://example.org/"})
+    a = p.ekid("a", attrs={"href": "http://example.org/"})
     a.kids.append("example.org")
     p.kids.append(".")
     # p.kids.append(xl.Comment("这是xml注释"))
-    _span = xl.sub(body, "span")
+    _span = body.ekid("span")
 
     xml = xl.Xml(prolog=prolog, doctype=doctype, root=html)
     xml.kids.insert(1, xl.QMElement("xml-model", {"href": "http://www.docbook.org/xml/5.0/rng/docbook.rng"}))
