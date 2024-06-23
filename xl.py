@@ -765,8 +765,8 @@ class Element(_BaseElement, _Tag, _Attr, _Kids):
 
 
 class Xml(_Kids):
-    def __init__(self, prolog: Prolog = None, doctype: DocType = None,
-                 qmelements: list[QMElement] = None, root: Element = None,
+    def __init__(self, root: Element = None,
+                 prolog: Prolog = None, doctype: DocType = None, qmelements: list[QMElement] = None,
                  kids: list[Prolog | DocType | QMElement | Element] = None):
         _Kids.__init__(self)
         if prolog:
