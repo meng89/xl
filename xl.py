@@ -469,6 +469,10 @@ class ParseError(Exception):
     pass
 
 
+class NotExistsError(Exception):
+    pass
+
+
 class _Tag:
     def __init__(self, tag=None):
         self.tag = tag
@@ -688,7 +692,7 @@ class Element(_BaseElement, _Tag, _Attr, _Kids):
     def skid(self, string: str) -> None:
         self.kids.append(string)
 
-    def find_kids(self, tag):
+    def find_kids(self, tag) -> [Self]:
         kids = []
         for _kid in self.kids:
             if isinstance(_kid, Element) and _kid.tag == tag:
@@ -781,22 +785,25 @@ class Xml(_Kids):
             self.kids = kids
 
     @property
-    def root(self) -> Element or None:
+    def root(self) -> Element:
         for x in self.kids:
             if isinstance(x, Element):
                 return x
+        raise NotExistsError
 
     @property
-    def prolog(self) -> Prolog or None:
+    def prolog(self) -> Prolog:
         for x in self.kids:
             if isinstance(x, Prolog):
                 return x
+        raise NotExistsError
 
     @property
-    def doctype(self) -> DocType or None:
+    def doctype(self) -> DocType:
         for x in self.kids:
             if type(x) is type(DocType()):
                 return x
+        raise NotExistsError
 
     def to_str(self,
                new_line_after_kid: bool = None,
