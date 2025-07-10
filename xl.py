@@ -532,8 +532,10 @@ class _Kids:
 
     @kids.setter
     def kids(self, value):
-        if not isinstance(value, list):
-            raise ValueError
+        try:
+            iter(value)
+        except TypeError:
+            raise ValueError("kids needs to be iterable")
         self._kids = value
 
 
