@@ -8,7 +8,7 @@ import abc
 from typing import Self
 
 
-__version__ = "1.0.0"
+__version__ = "1.1.0"
 
 
 _escape_table_string_kid = (
