@@ -720,7 +720,18 @@ class Element(_BaseElement, _Tag, _Attr, _Kids):
 
         s = "<" + self.tag + self._attrs2str()
 
-        if self._kids:
+        def _is_empty_kids():
+            for __kid in self._kids:
+                if isinstance(__kid, str):
+                    if __kid == "":
+                        pass
+                    else:
+                        return False
+                else:
+                    return False
+            return True
+
+        if self._kids and not _is_empty_kids():
             s += '>'
 
             _indent_text = '\n' + char * (begin_indent + step)
