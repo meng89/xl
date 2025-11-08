@@ -5,8 +5,7 @@
 """ XML without mire! / 无坑 XML ！"""
 
 import abc
-from abc import ABC
-from typing import Self
+from typing import Self, List
 
 
 __version__ = "1.1.1"
@@ -540,7 +539,7 @@ class _Kids:
         self._kids = value
 
 
-class _BaseElement(ABC):
+class _BaseElement:
     @abc.abstractmethod
     def to_str(self, *args, **kwargs):
         pass
@@ -695,7 +694,7 @@ class Element(_BaseElement, _Tag, _Attr, _Kids):
     def skid(self, string: str) -> None:
         self.kids.append(string)
 
-    def find_kids(self, tag) -> list[Self]:
+    def find_kids(self, tag) -> List[Self]:
         kids = []
         for _kid in self.kids:
             if isinstance(_kid, Element) and _kid.tag == tag:
