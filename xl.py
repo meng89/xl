@@ -5,10 +5,11 @@
 """ XML without mire! / 无坑 XML ！"""
 
 import abc
+from abc import ABC
 from typing import Self
 
 
-__version__ = "1.1.0"
+__version__ = "1.1.1"
 
 
 _escape_table_string_kid = (
@@ -539,7 +540,7 @@ class _Kids:
         self._kids = value
 
 
-class _BaseElement:
+class _BaseElement(ABC):
     @abc.abstractmethod
     def to_str(self, *args, **kwargs):
         pass
@@ -694,7 +695,7 @@ class Element(_BaseElement, _Tag, _Attr, _Kids):
     def skid(self, string: str) -> None:
         self.kids.append(string)
 
-    def find_kids(self, tag) -> [Self]:
+    def find_kids(self, tag) -> list[Self]:
         kids = []
         for _kid in self.kids:
             if isinstance(_kid, Element) and _kid.tag == tag:
