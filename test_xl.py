@@ -13,6 +13,7 @@ _xml1_text = \
     <head>
                         <title>Virtual Library</title>   
         <sf></sf>
+        <xxx>测&zwnj;试</xxx>
     </head>
     <body>
         <p><![CDATA[<abcdefg>]]>Moved to <a href="http://example.org/">example.org</a>.<!--这是xml注释--></p>
@@ -34,6 +35,10 @@ def get_xml2():
     html = xl.Element("html", {"xmlns": "http://www.w3.org/1999/xhtml", "xml:lang": "en", "lang": "en"})
     head = html.ekid("head", kids=[xl.Element("title", kids=["Virtual Library"])])
     _sf = head.ekid("sf")
+    _xxx = head.ekid("xxx")
+    _xxx.kids.append("测")
+    _xxx.kids.append(xl.HtmlZWNJ())
+    _xxx.kids.append("试")
     _sf.self_closing = False
     body = html.ekid("body")
     p = body.ekid("p")

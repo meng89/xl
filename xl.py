@@ -5,18 +5,44 @@
 """ XML without mire! / 无坑 XML ！"""
 
 import abc
+from abc import ABC
 from typing import Self, List
 
 
-__version__ = "1.1.1"
+__version__ = "1.2.0"
 
+
+class _BaseElement:
+    @abc.abstractmethod
+    def to_str(self, *args, **kwargs):
+        pass
+
+
+class Escape:
+    @abc.abstractmethod
+    def to_str(self, *args, **kwargs):
+        pass
+
+
+class HtmlZWNJ(Escape):
+    """The zero-width non-joiner"""
+    def to_str(self, *args, **kwargs) -> str:
+        return "&zwnj;"
+
+# Element 子元素的转义需求：
+# <> 这种字符元素因为和 xml 标签用冲突，所以需要转义。> 符号似乎不需要转义，但是，这是xml设计
+# & 因为是转义字符，所以它也需要转义
+
+# Element 的属性转义需求：
+# 如果属性值是单引号包含的，需要用
 
 _escape_table_string_kid = (
     ('&', '&amp;'),  # I guess this must be the first one?
     ('<', '&lt;'),
-    # 大于好可能无需转义
+    # 大于号可能无需转义
     # https://stackoverflow.com/questions/76342593/xmlmapper-not-escaping-the-greater-than-character-but-does-escape-the-rest
     ('>', '&gt;'),
+    HtmlZWNJ
 )
 
 _escape_table_single_quote = (("'", "&apos;"),)
@@ -30,66 +56,73 @@ _xml_attr_escape_table = _escape_table_string_kid + _escape_table_quote
 _escape_table_all = _escape_table_string_kid + _xml_attr_escape_table
 
 
-def _unescape_all(text):
-    return _unescape(text, _escape_table_all)
+def _merge(l: list[str|_BaseElement]):
+    new_l = []
+    for x in l:
+        if isinstance(x, _BaseElement):
+            new_l.append(x)
+        elif isinstance(x, str):
+            if len(new_l) > 0 and isinstance(new_l[-1], str):
+                new_l[-1] = new_l[-1] + x
+            else:
+                new_l.append(x)
+    return new_l
 
 
-def _unescape(text, table):
-    _text = text
-    new_text = ""
+def _strip(l: list[str|_BaseElement]):
+    if len(l) > 0 and isinstance(l[0], str):
+        l[0] = l[0].rstrip()
+    if len(l) > 0 and isinstance(l[-1], str):
+        l[-1] = l[-1].rstrip()
+
+    if len(l) == 1 and l[0] == "":
+        return []
+    else:
+        return l
+
+
+# text to XML
+def _unescape(text, table) -> list[str|_BaseElement]:
+    l = []
     i = 0
     while i < len(text):
         unescaped = False
-        for x, y in table:
-            if text[i: i + len(y)] == y:
-                new_text += x
-                i += len(y)
+        for z in table:
+            if isinstance(z, tuple):
+                x, y = z
+                if text[i: i + len(y)] == y:
+                    l.append(x)
+                    i += len(y)
+                    unescaped = True
+                    break
+            elif isinstance(z, type) and isinstance(z(), Escape):
+                l.append(z())
+                i += len(z().to_str())
                 unescaped = True
                 break
+
         if not unescaped:
-            new_text += text[i]
+            l.append(text[i])
             i += 1
-    return new_text
+
+    return _merge(l)
 
 
-def _escape(text, table):
-    new_text = ""
+# XML to text
+def _escape(text, table) -> list[str|_BaseElement]:
+    s = ""
     for c in text:
         escaped = False
-        for x, y in table:
-            if c == x:
-                new_text += y
-                escaped = True
-                break
+        for z in table:
+            if isinstance(z, tuple):
+                x, y = z
+                if c == x:
+                    s += y
+                    escaped = True
+                    break
         if not escaped:
-            new_text += c
-    return new_text
-
-
-def _is_straight_line(element):
-    if len(element.kids) == 0:
-        return True
-
-    if len(element.kids) == 1:
-        if isinstance(element.kids[0], Element):
-            return _is_straight_line(element.kids[0])
-        else:
-            return True
-
-    elif len(element.kids) > 1:
-        return False
-
-
-def _is_have_string_kid(kids):
-    for _kid in kids:
-        if isinstance(_kid, str):
-            return True
-    return False
-
-
-def _escape_comment(text):
-    # todo more research
-    return text
+            s += c
+    return s
 
 
 def _escape_quoted_string(s):
@@ -100,8 +133,23 @@ def _escape_unquoted_string(s):
     return _escape(s, _escape_table_all)
 
 
-def _escape_all(s):
-    return _escape(s, _escape_table_all)
+def _unescape_element_string(text):
+    table = (
+        ('&', '&amp;'),  # I guess this must be the first one?
+        ('<', '&lt;'),
+        ('>', '&gt;'),
+        HtmlZWNJ,
+    )
+    return _unescape(text, table)
+
+
+def _escape_element_string(text):
+    table = (
+        ('&', '&amp;'),  # I guess this must be the first one?
+        ('<', '&lt;'),
+        ('>', '&gt;')
+    )
+    return _escape(text, table)
 
 
 def _read_till_strings(text, i, strings):
@@ -183,14 +231,6 @@ def _read_tag(text, i):
     return tag, i
 
 
-def _read_endtag(text, i):
-    tag = ""
-    while i < len(text) and text[i] not in " >":
-        tag += text[i]
-        i += 1
-    return tag, i
-
-
 def _parse_string(text, i) -> tuple:
     s, i = _read_text(text, i)
     if s:
@@ -198,31 +238,6 @@ def _parse_string(text, i) -> tuple:
         return True, (_unescape_element_string(s), i)
     else:
         return False, None
-
-
-_element_string_table = (
-    ('&', '&amp;'),  # I guess this must be the first one?
-    ('<', '&lt;'),
-    ('>', '&gt;')
-)
-
-
-def _unescape_element_string(text):
-    table = (
-        ('&', '&amp;'),  # I guess this must be the first one?
-        ('<', '&lt;'),
-        ('>', '&gt;')
-    )
-    return _unescape(text, table)
-
-
-def _escape_element_string(text):
-    table = (
-        ('&', '&amp;'),  # I guess this must be the first one?
-        ('<', '&lt;'),
-        ('>', '&gt;')
-    )
-    return _escape(text, table)
 
 
 def _read_text(text, i):
@@ -444,13 +459,14 @@ def _read_subs(text, i,
 
             if is_success:
                 term, i = result
-                if isinstance(term, str):
-                    if ignore_blank is True and tag not in unignore_blank_parent_tags and term.strip() == "":
-                        term = term.strip()
+
+                if isinstance(term, list):
+                    if ignore_blank is True and tag not in unignore_blank_parent_tags:
+                        term = _strip(term)
                     if strip is True and tag not in unstrip_parent_tags:
-                        term = term.strip()
+                        term = _strip(term)
                     if term:
-                        kids.append(term)
+                        kids.extend(term)
                 elif isinstance(term, Comment) and ignore_comment:
                     pass
                 else:
@@ -539,10 +555,7 @@ class _Kids:
         self._kids = value
 
 
-class _BaseElement:
-    @abc.abstractmethod
-    def to_str(self, *args, **kwargs):
-        pass
+
 
 
 class QMElement(_BaseElement, _Tag, _Attr):
@@ -745,6 +758,9 @@ class Element(_BaseElement, _Tag, _Attr, _Kids):
 
                 if isinstance(_kid, str):
                     s += _escape_element_string(_kid)
+
+                elif isinstance(_kid, Escape):
+                    s += _kid.to_str()
 
                 elif isinstance(_kid, _BaseElement):
                     s += _kid.to_str(do_pretty_ultimately,
