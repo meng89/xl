@@ -457,7 +457,15 @@ def _read_subs(text, i,
                ignore_comment,
                tag) -> tuple:
     kids = []
-    # while True:
+    while True:
+        sub_text, i = _read_till(text, i, "<")
+        if sub_text[0] == "<":
+            pass
+        else:
+            _parse_element_kid_string(sub_text)
+
+
+
     while i < len(text):
         for fun in (_parse_cdata, _parse_prolog_or_qme, _parse_doctype, _parse_comment, _parse_element, _parse_string):
             if fun is _parse_element:
