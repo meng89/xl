@@ -69,7 +69,7 @@ def _merge(l: list[str|_BaseElement]):
     return new_l
 
 
-def _strip(l: list[str|_BaseElement]):
+def _strip(l: list[str|Escape]):
     if len(l) > 0 and isinstance(l[0], str):
         l[0] = l[0].rstrip()
     if len(l) > 0 and isinstance(l[-1], str):
@@ -82,7 +82,7 @@ def _strip(l: list[str|_BaseElement]):
 
 
 # text to XML
-def _unescape(text, table) -> list[str|_BaseElement]:
+def _unescape(text, table) -> list[str|Escape]:
     l = []
     i = 0
     while i < len(text):
@@ -752,18 +752,26 @@ class Element(_BaseElement, _Tag, _Attr, _Kids):
             _indent_text = '\n' + char * (begin_indent + step)
             do_pretty_ultimately = do_pretty is True and self.tag not in dont_do_tags
 
-            escape = False
+            last_type = None
             for _kid in self._kids:
-                if do_pretty_ultimately:
-                    s += _indent_text
+                #if do_pretty_ultimately:
+                #    s += _indent_text
 
                 if isinstance(_kid, str):
+                    if last_type is not "str" and do_pretty_ultimately:
+                        s += _indent_text
                     s += _escape_element_string(_kid)
+                    last_type = "str"
 
                 elif isinstance(_kid, Escape):
+                    if last_type is not "str" and do_pretty_ultimately:
+                        s += _indent_text
                     s += _kid.to_str()
+                    last_type = "str"
 
                 elif isinstance(_kid, _BaseElement):
+                    if last_type is not "e" and do_pretty_ultimately:
+                        s += _indent_text
                     s += _kid.to_str(do_pretty_ultimately,
                                      begin_indent + step,
                                      step,
@@ -771,6 +779,7 @@ class Element(_BaseElement, _Tag, _Attr, _Kids):
                                      dont_do_tags,
                                      try_self_closing
                                      )
+                    last_type = "e"
                 else:
                     raise TypeError("Kid type:{} not supported.".format(type(_kid)))
 
