@@ -752,6 +752,7 @@ class Element(_BaseElement, _Tag, _Attr, _Kids):
             _indent_text = '\n' + char * (begin_indent + step)
             do_pretty_ultimately = do_pretty is True and self.tag not in dont_do_tags
 
+            escape = False
             for _kid in self._kids:
                 if do_pretty_ultimately:
                     s += _indent_text
