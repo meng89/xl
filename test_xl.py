@@ -12,8 +12,7 @@ _xml1_text = \
 <html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
     <head>
                         <title>Virtual Library</title>   
-        <sf></sf>
-        <xxx>测&zwnj;试</xxx>
+        <sf></sf><xxx>测&zwnj;试</xxx>
     </head>
     <body>
         <p><![CDATA[<abcdefg>]]>Moved to <a href="http://example.org/">example.org</a>.<!--这是xml注释--></p>
@@ -66,7 +65,7 @@ class MyTestCase(unittest.TestCase):
         xml1_str = xml1.to_str(new_line_after_kid=True, do_pretty=True, dont_do_tags=["p", "title"])
         print(xml1_str)
         print("########/xml2:")
-        xml2_str = xml2.to_str(new_line_after_kid=True, do_pretty=True, dont_do_tags=["p", "title"])
+        xml2_str = xml2.to_str(new_line_after_kid=True, do_pretty=True, dont_do_tags=["p", "title", ])
         print(xml2_str)
         print("########/END")
         self.maxDiff = None

@@ -12,13 +12,13 @@ from typing import Self, List
 __version__ = "1.2.0"
 
 
-class _BaseElement:
+class BaseElement(ABC):
     @abc.abstractmethod
     def to_str(self, *args, **kwargs):
         pass
 
 
-class Escape:
+class Escape(ABC):
     @abc.abstractmethod
     def to_str(self, *args, **kwargs):
         pass
@@ -42,11 +42,10 @@ _escape_table_string_kid = (
     # 大于号可能无需转义
     # https://stackoverflow.com/questions/76342593/xmlmapper-not-escaping-the-greater-than-character-but-does-escape-the-rest
     ('>', '&gt;'),
-    HtmlZWNJ
 )
 
-_escape_table_single_quote = (("'", "&apos;"),)
-_escape_table_double_quote = (('"', '&quot;'),)
+_escape_table_single_quote = (("'", "&apos;"), )
+_escape_table_double_quote = (('"', '&quot;'), )
 
 _escape_table_quote = _escape_table_double_quote + _escape_table_double_quote
 
@@ -56,29 +55,32 @@ _xml_attr_escape_table = _escape_table_string_kid + _escape_table_quote
 _escape_table_all = _escape_table_string_kid + _xml_attr_escape_table
 
 
-def _merge(l: list[str|_BaseElement]):
+def _merge(l: list[str | BaseElement]):
     new_l = []
     for x in l:
-        if isinstance(x, _BaseElement):
+        if isinstance(x, Escape):
             new_l.append(x)
         elif isinstance(x, str):
             if len(new_l) > 0 and isinstance(new_l[-1], str):
                 new_l[-1] = new_l[-1] + x
             else:
                 new_l.append(x)
+        else:
+            raise Exception("BUG here!!!")
     return new_l
 
 
-def _strip(l: list[str|Escape]):
-    if len(l) > 0 and isinstance(l[0], str):
-        l[0] = l[0].rstrip()
-    if len(l) > 0 and isinstance(l[-1], str):
-        l[-1] = l[-1].rstrip()
+def _strip(l: list[str | Escape]):
+    nl = l.copy()
+    if len(nl) > 0 and isinstance(nl[0], str):
+        nl[0] = nl[0].rstrip()
+    if len(nl) > 0 and isinstance(nl[-1], str):
+        nl[-1] = nl[-1].rstrip()
 
-    if len(l) == 1 and l[0] == "":
+    if len(nl) == 1 and nl[0] == "":
         return []
     else:
-        return l
+        return nl
 
 
 # text to obj
@@ -87,33 +89,25 @@ def _unescape(text, table) -> list[str|Escape]:
     i = 0
     while i < len(text):
         unescaped = False
-        for z in table:
-            if isinstance(z, tuple):
-                x, y = z
-                if text[i: i + len(y)] == y:
-                    l.append(x)
-                    i += len(y)
-                    unescaped = True
-                    break
-
-            elif isinstance(z, type) and isinstance(z(), Escape):
-                x = z()
-                y = z().to_str()
-                if text[i: i + len(y)] == y:
-                    l.append(x)
-                    i += len(y)
-                    unescaped = True
-                    break
+        for _x, y in table:
+            if isinstance(_x, type):
+                x = _x()
+            else:
+                x = _x
+            if text[i: i + len(y)] == y:
+                l.append(x)
+                i += len(y)
+                unescaped = True
+                break
 
         if not unescaped:
             l.append(text[i])
             i += 1
-    print("xixi", l, _merge(l))
     return _merge(l)
 
 
 # obj to text
-def _escape(text, table) -> list[str|_BaseElement]:
+def _escape(text, table) -> list[str | BaseElement]:
     s = ""
     for c in text:
         escaped = False
@@ -137,12 +131,12 @@ def _escape_unquoted_string(s):
     return _escape(s, _escape_table_all)
 
 
-def _unescape_element_string(text):
+def _unescape_element_kid_string(text):
     table = (
         ('&', '&amp;'),  # I guess this must be the first one?
         ('<', '&lt;'),
         ('>', '&gt;'),
-        (HtmlZWNJ,
+        (HtmlZWNJ, HtmlZWNJ().to_str())
     )
     return _unescape(text, table)
 
@@ -235,11 +229,11 @@ def _read_tag(text, i):
     return tag, i
 
 
-def _parse_string(text, i) -> tuple:
+def _parse_element_kid_string(text, i) -> tuple:
     s, i = _read_text(text, i)
     if s:
         # return True, (_unescape(s, _xml_escape_table), i)
-        return True, (_unescape_element_string(s), i)
+        return True, (_unescape_element_kid_string(s), i)
     else:
         return False, None
 
@@ -439,7 +433,6 @@ def _read_attr(text, i):
     for x in value_list:
         assert isinstance(x, str)
         value += x
-    print("heihei", string_value, value)
     return key, value, i
 
 
@@ -459,7 +452,7 @@ def _read_subs(text, i,
     kids = []
     # while True:
     while i < len(text):
-        for fun in (_parse_cdata, _parse_prolog_or_qme, _parse_doctype, _parse_comment, _parse_element, _parse_string):
+        for fun in (_parse_cdata, _parse_prolog_or_qme, _parse_doctype, _parse_comment, _parse_element, _parse_element_kid_string):
             if fun is _parse_element:
                 is_success, result = fun(text, i,
                                          ignore_blank, unignore_blank_parent_tags,
@@ -471,10 +464,12 @@ def _read_subs(text, i,
 
             if is_success:
                 term, i = result
-
                 if isinstance(term, list):
                     if ignore_blank is True and tag not in unignore_blank_parent_tags:
-                        term = _strip(term)
+                        if _strip(term) == []:
+                            term = []
+                        else:
+                            term = term
                     if strip is True and tag not in unstrip_parent_tags:
                         term = _strip(term)
                     if term:
@@ -570,7 +565,7 @@ class _Kids:
 
 
 
-class QMElement(_BaseElement, _Tag, _Attr):
+class QMElement(BaseElement, _Tag, _Attr):
     def __init__(self, tag: str = None, attrs: dict = None):
         _Tag.__init__(self, tag)
         _Attr.__init__(self, attrs)
@@ -626,7 +621,7 @@ class Prolog(QMElement):
             raise Exception
 
 
-class Comment(_BaseElement):
+class Comment(BaseElement):
     def __init__(self, text: str):
         self.text = text
 
@@ -636,7 +631,7 @@ class Comment(_BaseElement):
 
 
 # html thing, not xml thing
-class DocType(_BaseElement):
+class DocType(BaseElement):
     def __init__(self, unquoted_strings: list = None, quoted_strings: list = None, default_html5=True):
         self.unquoted_strings = unquoted_strings or []
         self.quoted_strings = quoted_strings or []
@@ -674,7 +669,7 @@ class DocType(_BaseElement):
         return s
 
 
-class Cdata(_BaseElement):
+class Cdata(BaseElement):
     def __init__(self, text: str = None):
         self.text = text or ""
 
@@ -693,9 +688,9 @@ class Cdata(_BaseElement):
         return "<![CDATA[{}]]>".format(self.text)
 
 
-class Element(_BaseElement, _Tag, _Attr, _Kids):
+class Element(BaseElement, _Tag, _Attr, _Kids):
     def __init__(self, tag: str = None, attrs: dict[str, str] = None, kids: list = None):
-        _BaseElement.__init__(self)
+        BaseElement.__init__(self)
         _Tag.__init__(self, tag)
         _Attr.__init__(self, attrs)
         self.kids = kids or []
@@ -781,7 +776,7 @@ class Element(_BaseElement, _Tag, _Attr, _Kids):
                     s += _kid.to_str()
                     last_type = "str"
 
-                elif isinstance(_kid, _BaseElement):
+                elif isinstance(_kid, BaseElement):
                     if last_type is not "e" and do_pretty_ultimately:
                         s += _indent_text
                     s += _kid.to_str(do_pretty_ultimately,
@@ -870,7 +865,7 @@ class Xml(_Kids):
         s = ""
         ss = []
         for kid in self.kids:
-            if isinstance(kid, _BaseElement):
+            if isinstance(kid, BaseElement):
                 x = kid.to_str(do_pretty,
                                begin_indent,
                                step,

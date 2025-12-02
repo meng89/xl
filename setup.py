@@ -18,7 +18,7 @@ CLASSIFIERS = [
 ]
 
 setup(name=NAME,
-      version="1.1.1",
+      version="1.2.0",
       description=DESCRIPTION,
       include_package_data=True,
       author='Chen Meng',
