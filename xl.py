@@ -9,7 +9,7 @@ from abc import ABC
 from typing import Self, List
 
 
-__version__ = "1.2.0"
+__version__ = "1.2.1"
 
 
 class BaseElement(ABC):
@@ -27,7 +27,7 @@ class Escape(ABC):
 class HtmlZWNJ(Escape):
     """The zero-width non-joiner"""
     def to_str(self, *args, **kwargs) -> str:
-        return "&zwnj;"
+        return "&#8204;" # "&zwnj;" not work well in xhtml
 
 # Element 子元素的转义需求：
 # <> 这种字符元素因为和 xml 标签用冲突，所以需要转义。> 符号似乎不需要转义，但是，这是xml设计
