@@ -26,6 +26,9 @@ class Escape(ABC):
 
 class HtmlZWNJ(Escape):
     """The zero-width non-joiner"""
+    def __init__(self):
+        pass
+
     def to_str(self, *args, **kwargs) -> str:
         return "&#8204;" # "&zwnj;" not work well in xhtml
 
@@ -765,19 +768,19 @@ class Element(BaseElement, _Tag, _Attr, _Kids):
                 #    s += _indent_text
 
                 if isinstance(_kid, str):
-                    if last_type is not "str" and do_pretty_ultimately:
+                    if last_type != "str" and do_pretty_ultimately:
                         s += _indent_text
                     s += _escape_element_string(_kid)
                     last_type = "str"
 
                 elif isinstance(_kid, Escape):
-                    if last_type is not "str" and do_pretty_ultimately:
+                    if last_type != "str" and do_pretty_ultimately:
                         s += _indent_text
                     s += _kid.to_str()
                     last_type = "str"
 
                 elif isinstance(_kid, BaseElement):
-                    if last_type is not "e" and do_pretty_ultimately:
+                    if last_type != "e" and do_pretty_ultimately:
                         s += _indent_text
                     s += _kid.to_str(do_pretty_ultimately,
                                      begin_indent + step,
