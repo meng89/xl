@@ -5,8 +5,6 @@ NAME = "xl"
 DESCRIPTION = 'A Python module to process XML'
 
 
-URL = 'https://github.com/meng89/' + NAME
-
 CLASSIFIERS = [
     'Intended Audience :: Developers',
     'License :: OSI Approved :: MIT License',
@@ -17,13 +15,16 @@ CLASSIFIERS = [
     'Topic :: Software Development :: Libraries :: Python Modules',
 ]
 
-setup(name=NAME,
-      version="1.2.1",
-      description=DESCRIPTION,
-      include_package_data=True,
-      author='Chen Meng',
-      author_email='ObserverChan@gmail.com',
-      license='MIT',
-      url=URL,
-      py_modules=[NAME],
-      classifiers=CLASSIFIERS)
+
+setup(
+    name = NAME,
+    version = "1.2.2",
+    description = DESCRIPTION,
+    include_package_data = True,
+    author = 'Chen Meng',
+    author_email = 'ObserverChan@gmail.com',
+    license = 'MIT',
+    url = 'https://github.com/meng89/xl',
+    py_modules = [NAME],
+    classifiers = CLASSIFIERS
+)

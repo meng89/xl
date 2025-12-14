@@ -9,7 +9,7 @@ from abc import ABC
 from typing import Self, List
 
 
-__version__ = "1.2.1"
+__version__ = "1.2.2"
 
 
 class BaseElement(ABC):
@@ -765,7 +765,7 @@ class Element(BaseElement, _Tag, _Attr, _Kids):
             last_type = None
             for _kid in self._kids:
                 #if do_pretty_ultimately:
-                #    s += _indent_text
+                    #s += _indent_text
 
                 if isinstance(_kid, str):
                     if last_type != "str" and do_pretty_ultimately:
@@ -780,7 +780,7 @@ class Element(BaseElement, _Tag, _Attr, _Kids):
                     last_type = "str"
 
                 elif isinstance(_kid, BaseElement):
-                    if last_type != "e" and do_pretty_ultimately:
+                    if do_pretty_ultimately:
                         s += _indent_text
                     s += _kid.to_str(do_pretty_ultimately,
                                      begin_indent + step,
